@@ -1,0 +1,58 @@
+name: factoryos
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: docker/backend.env
+      - path: .env.docker
+        required: false
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - repair-artifacts:/app/artifacts/modernization
+      - notification-data:/app/data
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: frontend
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  simulator:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - docker/backend.env
+    entrypoint: ["python", "hardware/simulator.py", "--url", "http://backend:8000/api/telemetry"]
+    command: ["--mode", "fault"]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  mongo-data:
+  repair-artifacts:
+  notification-data:

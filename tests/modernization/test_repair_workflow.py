@@ -76,6 +76,26 @@ def test_tag_cannot_be_used_as_execution_identity():
         container_command(LEGACY_MONITOR_PATH, "factoryos-monitor:local", "factoryos-monitor-" + "a" * 32)
 
 
+def test_sibling_container_uses_host_artifact_path(tmp_path, monkeypatch):
+    monkeypatch.setattr(docker_runner, "DEFAULT_OUTPUT_ROOT", tmp_path)
+    monkeypatch.setenv("FACTORYOS_DOCKER_ARTIFACT_ROOT", "/host/repairs")
+    source = tmp_path / "repair-123" / "candidate" / "monitor.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("# candidate\n")
+    command = container_command(source, "sha256:" + "a" * 64, "factoryos-monitor-" + "b" * 32)
+    assert "type=bind,source=/host/repairs/repair-123/candidate/monitor.py,target=/work/monitor.py,readonly" in command
+    assert "--network=none" in command and "--read-only" in command
+    with pytest.raises(ValueError):
+        container_command(LEGACY_MONITOR_PATH, "sha256:" + "a" * 64, "factoryos-monitor-" + "b" * 32)
+
+
+@pytest.mark.parametrize("root", ["relative/path", "/host/path,other"])
+def test_invalid_host_artifact_root_rejected(root, monkeypatch):
+    monkeypatch.setenv("FACTORYOS_DOCKER_ARTIFACT_ROOT", root)
+    with pytest.raises(ValueError, match="absolute path without commas"):
+        container_command(LEGACY_MONITOR_PATH, "sha256:" + "a" * 64, "factoryos-monitor-" + "b" * 32)
+
+
 def test_missing_or_skipped_cases_cannot_verify():
     cases = [{"name": name, "outcome": "passed", "message": ""}
              for name in sorted(testing.EXPECTED_CASES)]

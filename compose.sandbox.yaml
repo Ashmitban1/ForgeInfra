@@ -1,0 +1,12 @@
+# Opt-in local repair verification. The Docker socket grants host daemon access.
+services:
+  backend:
+    user: "0:0"
+    environment:
+      FACTORYOS_DOCKER_ARTIFACT_ROOT: ${PWD:?Run Compose from the repository root}/artifacts/modernization
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Sibling monitor containers bind files from the daemon host, not /app.
+      - type: bind
+        source: ./artifacts/modernization
+        target: /app/artifacts/modernization

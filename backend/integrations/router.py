@@ -1,6 +1,7 @@
 """Notification router with a durable creation ledger and injected P1 storage."""
 from copy import deepcopy
 import json
+import os
 from pathlib import Path
 import sqlite3
 
@@ -9,7 +10,8 @@ from fastapi import APIRouter, HTTPException
 from backend.integrations.jira import configuration, create_issue
 from backend.integrations.slack import deliver
 
-DEFAULT_LEDGER = Path(__file__).resolve().parents[2] / '.factoryos-jira.sqlite3'
+DEFAULT_LEDGER = Path(os.environ.get('FACTORYOS_NOTIFICATION_LEDGER',
+                                    str(Path(__file__).resolve().parents[2] / '.factoryos-jira.sqlite3')))
 
 
 def create_notification_router(incidents: dict, storage_lock, ledger_path=DEFAULT_LEDGER,

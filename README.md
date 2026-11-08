@@ -100,6 +100,17 @@ FactoryOS/
 
 ## Run locally (Windows PowerShell)
 
+For containerized frontend, backend, and persistent local MongoDB, see
+[the Docker guide](docs/DOCKER.md). Quick start from the repository root:
+
+```sh
+cp .env.docker.example .env.docker
+docker compose up --build -d
+```
+
+Dashboard: http://localhost:5173/#/; API: http://localhost:8000/docs. AI repair
+verification requires the guide's optional Docker-socket override.
+
 **Terminal 1 — Backend, from repository root:**
 ```powershell
 py -3 -m venv .venv

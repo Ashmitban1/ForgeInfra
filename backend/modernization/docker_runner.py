@@ -1,13 +1,14 @@
 """Run JSON monitoring events in restricted, disposable Docker containers."""
 
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
 import time
 import uuid
 
-from backend.modernization.patching import source_hash
+from backend.modernization.patching import DEFAULT_OUTPUT_ROOT, source_hash
 from backend.modernization.runner import LegacyMonitorError
 from backend.schemas.incident import TelemetryEvent
 
@@ -46,13 +47,22 @@ def container_command(source: Path, image_id: str, name: str) -> list[str]:
         raise ValueError("Execution requires an immutable Docker image ID")
     if not re.fullmatch(r"factoryos-monitor-[0-9a-f]{32}", name):
         raise ValueError("Invalid temporary container name")
+    # With a host Docker socket, bind sources must use the daemon host's path.
+    # Only generated artifacts may be translated; never arbitrary source paths.
+    mount_source = source
+    host_root = os.environ.get("FACTORYOS_DOCKER_ARTIFACT_ROOT", "").strip()
+    if host_root:
+        root = Path(host_root)
+        if not root.is_absolute() or "," in host_root:
+            raise ValueError("Docker artifact root must be an absolute path without commas")
+        mount_source = root / source.relative_to(DEFAULT_OUTPUT_ROOT.resolve())
     return [
         "docker", "run", "--rm", "--interactive", "--pull=never", "--name", name,
         "--network=none", "--read-only", "--user=65534:65534",
         "--cap-drop=ALL", "--security-opt=no-new-privileges=true",
         "--memory=128m", "--memory-swap=128m", "--cpus=0.5", "--pids-limit=32",
         "--ulimit=nofile=64:64", "--log-driver=none",
-        "--mount", f"type=bind,source={source},target=/work/monitor.py,readonly",
+        "--mount", f"type=bind,source={mount_source},target=/work/monitor.py,readonly",
         image_id,
     ]
 
