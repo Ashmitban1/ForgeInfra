@@ -84,5 +84,24 @@ report = verify_proposal(proposal, incident_id="INC-COOLING-001")
 
 See `fixtures/legacy_monitor/README.md` for fixture provenance. Coordinate with Person
 1 before wiring this into the shared backend and preserve `docs/API_CONTRACT.md`.
-Next: shared incident/job interfaces, real Nemotron investigation, Gemini review,
-and authorized approval/replay. No live route, AI call, merge, or deployment was added.
+Step 4 now supplies shared incident/job interfaces and API registration through
+the wrapper below. Real Nemotron investigation, Gemini review, authorized approval,
+and candidate activation remain pending; offline snapshot replay is implemented.
+
+## Step 4: incident repair API
+
+```sh
+python -m uvicorn backend.modernization.app:app --reload
+```
+
+This mounts the modernization router onto P1's existing app and in-memory store
+without editing P1's files. Submit a simulator/hardware fault, POST the returned
+incident ID to `/api/incidents/{id}/repair`, and poll its `/analysis` or returned
+job URL. The bounded background worker runs step 3 plus actual event-snapshot
+replay; GET report/diff routes expose real browser-safe evidence.
+
+`repository.py` defines the injected storage interface and local adapter;
+`mongo_repository.py` implements canonical MongoDB incident reads, job persistence,
+atomic reservations, and incident result attachment. The local wrapper remains
+explicitly memory-backed until P1's canonical Atlas writer/app is connected.
+See [the full API and integration guide](../../docs/MODERNIZATION_API.md).

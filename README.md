@@ -20,7 +20,13 @@ python -m backend.modernization.testing --incident-id INC-COOLING-001
 ```
 
 See [the modernization workflow](backend/modernization/README.md). Approval,
-deployment, and live backend integration remain pending.
+deployment, and live monitor activation remain pending.
+
+**Person 2 step 4:** `python -m uvicorn backend.modernization.app:app --reload`
+adds incident-linked background repair jobs, analysis/report/diff reads, and frozen
+event replay to the existing local backend. A MongoDB adapter is supplied for the
+shared Atlas app; the local wrapper still uses P1's memory store. See the
+[modernization API guide](docs/MODERNIZATION_API.md) before integrating.
 
 ## Folders
 ```text
