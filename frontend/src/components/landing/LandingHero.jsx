@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
+import { FactoryOSMark } from '../brand/FactoryOSLogo.jsx';
 import { missionHref } from '../../router.js';
 
 function ServerSculpture() {
@@ -57,7 +58,7 @@ function ServerSculpture() {
           </g>
         </svg>
       </div>
-      <span className="art-caption">SYSTEM SCULPTURE <span>ARCHITECTURE ILLUSTRATION / NOT LIVE DATA</span></span>
+      <span className="art-caption">Architecture illustration · not live data</span>
     </div>
   );
 }
@@ -66,15 +67,13 @@ export default function LandingHero({ scrollTo }) {
   return (
     <section className="landing-hero" id="overview" aria-labelledby="hero-heading">
       <motion.div className="hero-copy" initial={reduce ? false : { opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .6 }}>
-        <span className="landing-eyebrow"><span className="small-cross">+</span> INTELLIGENT INFRASTRUCTURE OPERATIONS</span>
-        <h1 id="hero-heading">Reliability,<br /><span>engineered.</span></h1>
-        <p>See the fault. Find the cause. Verify the fix.</p>
-        <p className="hero-description">Infrastructure signals, independent verification and AI-assisted investigation. One connected path to a better operational decision.</p>
-        <div className="hero-actions"><a className="metal-button" href={missionHref}>Enter Mission Control <span aria-hidden="true">↗</span></a><button className="text-button" onClick={() => scrollTo('architecture')}>Explore the architecture <span aria-hidden="true">↓</span></button></div>
-        <div className="hero-proof"><span className="proof-line" />Built around evidence.<span className="hero-proof-muted">Designed for human decisions.</span></div>
+        <h1 id="hero-heading" className="hero-brand"><FactoryOSMark size={72} /><span>FactoryOS</span></h1>
+        <p className="hero-tagline">Detect. Investigate.<br className="hero-mobile-break" /> Verify. Respond.</p>
+        <p className="hero-description">AI-powered infrastructure reliability and legacy software modernization.</p>
+        <div className="hero-actions"><a className="metal-button" href={missionHref}>Enter Mission Control <span aria-hidden="true">↗</span></a><button className="text-button" onClick={() => scrollTo('architecture')}>Explore Workflow <span aria-hidden="true">↓</span></button></div>
       </motion.div>
       <motion.div className="hero-visual" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: .9, delay: .15 }}><ServerSculpture /></motion.div>
-      <div className="hero-bottom"><span>FACTORYOS / HACKUTD 2026</span><span>FROM PHYSICAL SIGNAL TO SOFTWARE INSIGHT</span><button onClick={() => scrollTo('architecture')} aria-label="Scroll to system architecture">↓</button></div>
+      <div className="hero-bottom"><span>HACKUTD 2026</span><button onClick={() => scrollTo('architecture')} aria-label="Scroll to system architecture">↓</button></div>
     </section>
   );
 }

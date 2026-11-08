@@ -7,10 +7,10 @@ import TechnicalIcon from '../components/landing/TechnicalIcon.jsx';
 import { missionHref, workspaceHref } from '../router.js';
 
 const workspaces = [
-  ['mission', 'signal', '01 / MONITOR', 'Mission Control', 'Infrastructure visualization, sensor readings and current reliability mismatches.', 'Open Mission Control'],
-  ['investigate', 'response', '02 / RESPOND', 'Incident Response', 'Follow incident evidence and real Jira / Slack notification outcomes.', 'Open Incidents'],
-  ['engineering', 'code', '03 / MODERNIZE', 'Engineering & Modernization', 'Review available investigation evidence. Repair and agent stages show their actual state.', 'Explore Modernization'],
-  ['operations', 'layers', '04 / OVERSEE', 'Operational Oversight', 'Review current incidents, handoff outcomes and evidence availability.', 'View Operations'],
+  ['mission', 'signal', '01', 'Mission Control', 'Live monitoring', 'Open Mission Control'],
+  ['investigate', 'response', '02', 'Incident Response', 'Investigations', 'Open Incidents'],
+  ['engineering', 'code', '03', 'Modernization', 'AI and test evidence', 'Explore Modernization'],
+  ['operations', 'layers', '04', 'Operations', 'Current incidents and oversight', 'View Operations'],
 ];
 
 export default function LandingPage({ section }) {
@@ -39,13 +39,12 @@ export default function LandingPage({ section }) {
       </header>
       <main id="landing-main" tabIndex={-1}>
         <LandingHero scrollTo={scrollTo} />
-        <div className="principle-strip"><span>INDEPENDENT BY DESIGN</span><p>The monitor says normal.<br /><strong>The evidence says otherwise.</strong></p><p>FactoryOS makes that disagreement visible —<br />then connects the people who can act on it.</p><span className="strip-symbol" aria-hidden="true">≠</span></div>
         <ArchitectureMindMap />
         <UserProblemMatrix />
-        <section className="landing-section workspace-section" id="workspaces" aria-labelledby="workspace-title"><div className="section-intro"><div><span className="landing-eyebrow">ENTER THE EXPERIENCE</span><h2 id="workspace-title">One platform.<br />The workspace you need.</h2></div><p>Choose your starting point. Each workspace uses the same incidents and evidence. Roles are navigation preferences, not permissions.</p></div><div className="workspace-grid">{workspaces.map(([route, icon, index, title, text, action]) => <a href={workspaceHref(route)} className="workspace-card" key={route}><div><span className="landing-eyebrow">{index}</span><TechnicalIcon kind={icon} size={30} /></div><h3>{title}</h3><p>{text}</p><span className="workspace-action">{action}<span aria-hidden="true">↗</span></span></a>)}</div></section>
-        <section className="closing-section" id="mission" aria-labelledby="mission-title"><div className="closing-mark"><FactoryOSMark size={48} /></div><span className="landing-eyebrow">OUR MISSION</span><h2 id="mission-title">Don’t just detect failures.<br /><span>Understand them.</span></h2><p>From infrastructure evidence to verified software improvements.</p><div className="hero-actions"><a className="metal-button" href={missionHref}>Launch FactoryOS <span aria-hidden="true">↗</span></a><button className="text-button" onClick={() => scrollTo('architecture')}>Explore the workflow ↑</button></div><small>AI assists. Evidence leads. People decide.</small></section>
+        <section className="landing-section workspace-section" id="workspaces" aria-labelledby="workspace-title"><div className="section-intro"><div><h2 id="workspace-title">Enter the platform.</h2></div><p>One platform. Four starting points.</p></div><div className="workspace-grid">{workspaces.map(([route, icon, index, title, text, action]) => <a href={workspaceHref(route)} className="workspace-card" key={route}><div><span className="landing-eyebrow">{index}</span><TechnicalIcon kind={icon} size={30} /></div><h3>{title}</h3><p>{text}</p><span className="workspace-action">{action}<span aria-hidden="true">↗</span></span></a>)}</div><small className="workspace-disclosure">Shared incidents · Navigation preferences, not permissions</small></section>
+        <section className="closing-section" id="mission" aria-labelledby="mission-title"><div className="closing-mark"><FactoryOSMark size={48} /></div><h2 id="mission-title">Don’t just detect failures.<br /><span>Understand them.</span></h2><div className="hero-actions"><a className="metal-button" href={missionHref}>Launch FactoryOS <span aria-hidden="true">↗</span></a><button className="text-button" onClick={() => scrollTo('architecture')}>Explore the workflow ↑</button></div></section>
       </main>
-      <footer className="landing-footer"><a href="#overview" onClick={event => { event.preventDefault(); scrollTo('overview'); }} aria-label="Back to FactoryOS overview"><FactoryOSLogo /></a><span>HACKUTD 2026 · INFRASTRUCTURE RELIABILITY</span><span>Built to question. Engineered to verify.</span></footer>
+      <footer className="landing-footer"><a href="#overview" onClick={event => { event.preventDefault(); scrollTo('overview'); }} aria-label="Back to FactoryOS overview"><FactoryOSLogo /></a><span>HACKUTD 2026 · INFRASTRUCTURE RELIABILITY</span></footer>
     </div>
   );
 }
