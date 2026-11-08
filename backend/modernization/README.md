@@ -85,8 +85,8 @@ report = verify_proposal(proposal, incident_id="INC-COOLING-001")
 See `fixtures/legacy_monitor/README.md` for fixture provenance. Coordinate with Person
 1 before wiring this into the shared backend and preserve `docs/API_CONTRACT.md`.
 Step 4 now supplies shared incident/job interfaces and API registration through
-the wrapper below. Real Nemotron investigation, Gemini review, authorized approval,
-and candidate activation remain pending; offline snapshot replay is implemented.
+the wrapper below. Step 5 adds real Nemotron investigation and generated candidates;
+Gemini review, authorized approval, and candidate activation remain pending.
 
 ## Step 4: incident repair API
 
@@ -105,3 +105,9 @@ replay; GET report/diff routes expose real browser-safe evidence.
 atomic reservations, and incident result attachment. The local wrapper remains
 explicitly memory-backed until P1's canonical Atlas writer/app is connected.
 See [the full API and integration guide](../../docs/MODERNIZATION_API.md).
+
+The same wrapper also mounts `/investigate` through a separate investigation service
+and job namespace. `create_model_proposal()` accepts only an AST-validated single
+monitoring assignment against the inspected hash; its tested candidates are labeled
+`nemotron_generated_patch`. The manual CLI and `/repair` retain their original
+manual labels. See [the agent guide](../agents/README.md).

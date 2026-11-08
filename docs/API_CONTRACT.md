@@ -1,6 +1,6 @@
 # FactoryOS API contract (v1)
 
-Base: `http://127.0.0.1:8000`. Owner P1: `GET /health`, `POST /api/telemetry`, `GET /api/telemetry/latest`, `GET /api/incidents`, `GET /api/incidents/{incident_id}` (implemented, in-memory). P2 implemented via `backend.modernization.app:app`: `GET /api/incidents/{id}/analysis`, `POST /api/incidents/{id}/repair`, repair job/report/diff reads. P2 proposed: `POST /api/incidents/{id}/investigate` (not implemented). P3 notification/approval routes are not registered on this branch. See [the modernization API](MODERNIZATION_API.md) for exact payloads, storage integration, and job behavior.
+Base: `http://127.0.0.1:8000`. Owner P1: `GET /health`, `POST /api/telemetry`, `GET /api/telemetry/latest`, `GET /api/incidents`, `GET /api/incidents/{incident_id}` (implemented, in-memory). P2 implemented via `backend.modernization.app:app`: `POST /api/incidents/{id}/investigate`, `GET /api/incidents/{id}/analysis`, `POST /api/incidents/{id}/repair`, investigation job/patch and repair job/report/diff reads. P3 notification/approval routes are not registered on this branch. See [the modernization API](MODERNIZATION_API.md) and [Nemotron agent guide](../backend/agents/README.md).
 
 ## Input: POST /api/telemetry
 ```json
@@ -38,3 +38,28 @@ incident's operational `status` and existing AI/integration fields.
 Job COMPLETED means execution finished; inspect `result.verification_status` for
 the actual verification outcome. The patch is manually authored, approval remains
 PENDING, and `deployed` stays false. Offline replay does not change the live monitor.
+
+## Nemotron investigation extension (Person 2, step 5)
+
+`POST /api/incidents/{id}/investigate` accepts no body and an optional
+`Idempotency-Key`. It returns 202 for accepted/active jobs, or 200 for a reused
+terminal request. Poll `GET /api/investigations/{job_id}` or the incident's existing
+`/analysis`. Missing NVIDIA configuration returns 503 before accepting new work.
+`GET /api/agents/capabilities` reports configuration and route support, not live
+provider health. `GET /api/investigations/{job_id}/patch` returns a real generated
+diff only when the final result contains one.
+
+Canonical `investigation` now carries actual status, agent/model, job/trace IDs,
+snapshot revision, tool calls/results, evidence IDs, findings, concise summary,
+recommended actions, provider metadata, safe errors, and optional generated repair.
+Its job's full evidence manifest is available through the investigation job route.
+QUEUED jobs appear as PENDING in the canonical incident; actual execution uses
+RUNNING/COMPLETED/FAILED/INTERRUPTED. Gemini fields are preserved unchanged.
+
+Investigation and repair jobs have separate namespaces over the same incidents.
+The default model is `nvidia/nemotron-3-ultra-550b-a55b`. Model-selected functions
+run through validated allowlists; final findings require retrieved evidence and
+valid source references. Tool SUCCESS is distinct from passing tests. A candidate
+actually authored through the model tool has `proposal_origin=nemotron_generated_patch`
+and its own explicit test verification. The existing `/repair` route stays manual.
+Neither route approves, deploys, changes live monitoring, or closes equipment faults.

@@ -15,6 +15,7 @@ frontend/dist/
 *.db
 *.sqlite*
 artifacts/modernization/
+.playwright-mcp/
 .DS_Store
 .vscode/
 .idea/

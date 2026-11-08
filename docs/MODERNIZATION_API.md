@@ -174,9 +174,10 @@ Uvicorn workers or replicas. Atlas persistence does not turn this in-process exe
 into a distributed durable queue. Graceful shutdown waits for accepted work;
 unexpected termination requires a new request key to retry interrupted jobs.
 
-No Nemotron/Gemini calls, approval, merge, deployment, Jira/Slack call, Tiger Data
-write, or cloud deployment is performed by these routes. Existing investigation
-and decision-review fields remain unchanged. The backend is still unauthenticated;
+The `/repair` routes perform no Nemotron/Gemini calls, approval, merge, deployment,
+Jira/Slack call, Tiger Data write, or cloud deployment. Step 5 separately adds real
+Nemotron `/investigate` routes in the same wrapper; see [the agent guide](../backend/agents/README.md).
+Repair execution itself preserves investigation/decision-review fields. The backend is still unauthenticated;
 use the current local/isolated setup until the team's shared deployment is protected.
 
 ## Validation

@@ -29,7 +29,7 @@ def public_job(job: dict) -> dict:
     return view
 
 
-def create_modernization_router(service: RepairService) -> APIRouter:
+def create_modernization_router(service: RepairService, investigation_service=None) -> APIRouter:
     @asynccontextmanager
     async def lifespan(app):
         service.start()
@@ -51,7 +51,7 @@ def create_modernization_router(service: RepairService) -> APIRouter:
 
     @router.get("/api/modernization/capabilities")
     def capabilities():
-        return {"repair": True, "analysis": True, "investigate": False,
+        return {"repair": True, "analysis": True, "investigate": investigation_service is not None,
                 "storage_backend": service.repository.backend, "worker": "single_process_background",
                 "proposal_origin": "manually_authored_demo_patch", "approval": False, "deploy": False}
 

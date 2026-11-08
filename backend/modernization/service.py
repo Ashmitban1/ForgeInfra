@@ -21,6 +21,8 @@ class WorkerCapacity(RuntimeError):
 
 
 class RepairService:
+    job_kind = "repair"
+
     def __init__(
         self, repository: IncidentRepository, output_root: Path = DEFAULT_OUTPUT_ROOT,
         pipeline=execute_incident_repair, max_pending: int = 4,
@@ -40,7 +42,23 @@ class RepairService:
             if self.executor is None:
                 for job in self.repository.interrupt_incomplete():
                     self.repository.attach_job(job)
-                self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="factoryos-repair")
+                self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="factoryos-" + self.job_kind)
+
+    def prepare_snapshot(self, snapshot: dict) -> dict:
+        return snapshot
+
+    def validate_snapshot(self, snapshot: dict):
+        incident_event(snapshot)
+
+    def request_identity(self, snapshot: dict) -> str:
+        return content_revision({
+            "snapshot_revision": content_revision(snapshot),
+            "original_revision": source_hash(LEGACY_MONITOR_PATH),
+            "acceptance_revision": source_hash(ACCEPTANCE_SUITE),
+        })
+
+    def job_metadata(self) -> dict:
+        return {"proposal_origin": "manually_authored_demo_patch", "approval_status": "PENDING", "deployed": False}
 
     def close(self):
         with self.lifecycle_lock:
@@ -51,19 +69,15 @@ class RepairService:
 
     def submit(self, incident_id: str, idempotency_key: str | None = None) -> tuple[dict, bool]:
         self.start()
-        snapshot = self.repository.get_incident_snapshot(incident_id)
+        snapshot = self.prepare_snapshot(self.repository.get_incident_snapshot(incident_id))
         identity = incident_identity(snapshot)
         # A retry refers to its original snapshot, even if live telemetry recovered.
         if idempotency_key:
             previous = self.repository.find_request(identity, idempotency_key)
             if previous:
                 return previous, False
-        incident_event(snapshot)  # Reject unsupported/malformed evidence before queueing work.
-        request_key = idempotency_key or content_revision({
-            "snapshot_revision": content_revision(snapshot),
-            "original_revision": source_hash(LEGACY_MONITOR_PATH),
-            "acceptance_revision": source_hash(ACCEPTANCE_SUITE),
-        })
+        self.validate_snapshot(snapshot)
+        request_key = idempotency_key or self.request_identity(snapshot)
         previous = self.repository.find_request(identity, request_key)
         if previous:
             return previous, False
@@ -73,15 +87,14 @@ class RepairService:
         try:
             now = utc_now()
             job, created = self.repository.reserve_job({
-                "job_id": "repair-job-" + uuid.uuid4().hex,
-                "trace_id": "repair-trace-" + uuid.uuid4().hex,
+                "job_id": self.job_kind + "-job-" + uuid.uuid4().hex,
+                "trace_id": self.job_kind + "-trace-" + uuid.uuid4().hex,
                 "incident_id": incident_id, "incident_identity": identity,
                 "incident_created_at": snapshot["created_at"], "device_id": snapshot["device_id"],
                 "request_key": request_key, "snapshot": snapshot,
                 "snapshot_revision": content_revision(snapshot),
                 "status": "QUEUED", "active": True, "created_at": now, "updated_at": now,
-                "proposal_origin": "manually_authored_demo_patch", "approval_status": "PENDING",
-                "deployed": False, "result": None, "error": None,
+                **self.job_metadata(), "result": None, "error": None,
             })
             if not created:
                 self.slots.release()

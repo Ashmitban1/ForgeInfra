@@ -14,14 +14,29 @@ from backend.modernization.repository import (
 class MongoIncidentRepository:
     backend = "mongodb"
 
-    def __init__(self, incidents, jobs):
+    def __init__(self, incidents, jobs, *, field="repair", summarizer=repair_summary):
         self.incidents = incidents
         self.jobs = jobs
+        self.field = field
+        self.summarizer = summarizer
         self.client = None
+        self._investigations = None
         jobs.create_index("job_id", unique=True)
         jobs.create_index([("incident_identity", 1), ("request_key", 1)], unique=True)
-        jobs.create_index("incident_identity", unique=True, name="one_active_repair",
+        jobs.create_index("incident_identity", unique=True, name=f"one_active_{field}",
                           partialFilterExpression={"active": True})
+
+    def for_investigations(self):
+        from backend.agents.schemas import investigation_summary
+        if self._investigations is None:
+            collection = os.environ.get("MONGODB_INVESTIGATION_JOBS_COLLECTION", "investigation_jobs")
+            if collection == self.jobs.name:
+                raise ValueError("Investigation and repair jobs require separate collections")
+            self._investigations = MongoIncidentRepository(
+                self.incidents, self.jobs.database[collection],
+                field="investigation", summarizer=investigation_summary,
+            )
+        return self._investigations
 
     @classmethod
     def from_environment(cls):
@@ -91,16 +106,16 @@ class MongoIncidentRepository:
         if current is None or incident_identity(snapshot_of(current)) != job["incident_identity"]:
             return False
         # Never replace a more recently submitted job's incident summary.
-        previous_id = current.get("repair", {}).get("job_id")
+        previous_id = current.get(self.field, {}).get("job_id")
         if previous_id and previous_id != job["job_id"]:
             previous = self.get_job(previous_id)
             if previous and previous["created_at"] > job["created_at"]:
                 return False
         result = self.incidents.update_one(
             {"_id": current["_id"], "created_at": current["created_at"],
-             "repair": current["repair"]} if "repair" in current else
-            {"_id": current["_id"], "created_at": current["created_at"], "repair": {"$exists": False}},
-            {"$set": {"repair": repair_summary(job)}},
+             self.field: current[self.field]} if self.field in current else
+            {"_id": current["_id"], "created_at": current["created_at"], self.field: {"$exists": False}},
+            {"$set": {self.field: self.summarizer(job)}},
         )
         return result.matched_count == 1
 
@@ -109,6 +124,6 @@ class MongoIncidentRepository:
         active = list(self.jobs.find({"active": True}, {"_id": 0}))
         self.jobs.update_many(
             {"active": True}, {"$set": {"status": "INTERRUPTED", "active": False,
-             "error": "The previous repair worker stopped; submit a new request key to retry."}},
+             "error": f"The previous {self.field} worker stopped; submit a new request key to retry."}},
         )
         return [self.get_job(job["job_id"]) for job in active]

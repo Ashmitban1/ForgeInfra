@@ -116,7 +116,7 @@ def verify_proposal(
     report = {
         "schema_version": "1.0", "repair_id": proposal.workspace.name,
         "incident_id": incident_id, "created_at": utc_now(),
-        "proposal_origin": "manually_authored_demo_patch", "status": "VERIFICATION_ERROR",
+        "proposal_origin": proposal.proposal_origin, "status": "VERIFICATION_ERROR",
         "approval_status": "PENDING", "deployed": False,
         "isolation": {"mode": "docker", "image": image, "image_id": None,
                       "unisolated_fallback": False},

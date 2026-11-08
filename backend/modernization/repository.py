@@ -66,10 +66,21 @@ class MemoryIncidentRepository:
 
     backend = "memory"
 
-    def __init__(self, incidents: dict, lock):
+    def __init__(self, incidents: dict, lock, *, field="repair", summarizer=repair_summary):
         self.incidents = incidents
         self.lock = lock
+        self.field = field
+        self.summarizer = summarizer
         self.jobs: dict[str, dict] = {}
+        self._investigations = None
+
+    def for_investigations(self):
+        from backend.agents.schemas import investigation_summary
+        if self._investigations is None:
+            self._investigations = MemoryIncidentRepository(
+                self.incidents, self.lock, field="investigation", summarizer=investigation_summary,
+            )
+        return self._investigations
 
     def get_incident_snapshot(self, incident_id: str) -> dict:
         with self.lock:
@@ -115,12 +126,12 @@ class MemoryIncidentRepository:
             incident = self.incidents.get(job["incident_id"])
             if incident is None or incident_identity(snapshot_of(incident)) != job["incident_identity"]:
                 return False
-            current = incident.get("repair", {})
+            current = incident.get(self.field, {})
             if current.get("job_id") not in (None, job["job_id"]):
                 previous = self.jobs.get(current["job_id"])
                 if previous and previous["created_at"] > job["created_at"]:
                     return False
-            incident["repair"] = repair_summary(job)
+            incident[self.field] = self.summarizer(job)
             return True
 
     def interrupt_incomplete(self) -> list[dict]:
@@ -129,6 +140,6 @@ class MemoryIncidentRepository:
             for job in self.jobs.values():
                 if job["active"]:
                     job.update(status="INTERRUPTED", active=False,
-                               error="The previous repair worker stopped; submit a new request key to retry.")
+                               error=f"The previous {self.field} worker stopped; submit a new request key to retry.")
                     interrupted.append(deepcopy(job))
             return interrupted

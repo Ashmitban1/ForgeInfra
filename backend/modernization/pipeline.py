@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 
 from backend.modernization.docker_runner import run_docker_monitor
-from backend.modernization.patching import REPOSITORY_ROOT, create_demo_proposal, source_hash
+from backend.modernization.patching import REPOSITORY_ROOT, RepairProposal, create_demo_proposal, source_hash
 from backend.modernization.repository import content_revision
 from backend.modernization.testing import verify_proposal
 from backend.schemas.incident import TelemetryEvent
@@ -53,9 +53,9 @@ def test_summary(result: dict, workspace: Path) -> dict:
     }
 
 
-def execute_incident_repair(snapshot: dict, output_root: Path) -> dict:
+def execute_incident_repair(snapshot: dict, output_root: Path, proposal: RepairProposal | None = None) -> dict:
     event = incident_event(snapshot)
-    proposal = create_demo_proposal(output_root)
+    proposal = proposal or create_demo_proposal(output_root)
     snapshot_revision = content_revision(snapshot)
     (proposal.workspace / "incident-snapshot.json").write_text(
         json.dumps({"snapshot_revision": snapshot_revision, "incident": snapshot}, indent=2) + "\n",

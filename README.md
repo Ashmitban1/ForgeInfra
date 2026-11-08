@@ -6,7 +6,7 @@ GitHub-ready **three-person team repository**. FactoryOS is a proof-of-concept f
 
 ✅ FastAPI telemetry API, deterministic mismatch checks, simple in-memory incidents, basic tests; ✅ Arduino UNO sketch + serial gateway + simulator; ✅ minimal React/Vite dashboard reading backend data; ✅ GitHub Actions Python test workflow.
 
-**Not yet implemented or verified:** physical Arduino connection; AI-driven repair generation; Nemotron/Gemini; Jira/Slack; GitHub PR automation; Tiger Data/MongoDB; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software.
+**Not yet implemented or verified on this branch:** physical Arduino connection; Gemini; Jira/Slack; GitHub PR automation; Tiger Data/Atlas writer integration; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software. MongoDB repository adapters have been tested locally.
 
 **Person 2's runnable baseline:** `fixtures/legacy_monitor/monitor.py` is a
 standalone, team-authored temperature-only monitor with JSON samples, an execution
@@ -28,6 +28,14 @@ event replay to the existing local backend. A MongoDB adapter is supplied for th
 shared Atlas app; the local wrapper still uses P1's memory store. See the
 [modernization API guide](docs/MODERNIZATION_API.md) before integrating.
 
+**Person 2 step 5:** The same wrapper now registers real NVIDIA Nemotron
+investigations, validated diagnostic tools, and constrained model-generated rule
+candidates with actual Docker verification. Set `NVIDIA_API_KEY` in an ignored
+dotenv file or backend environment, submit an incident, and POST its `/investigate`
+route. An initial live Ultra run exercised model/tool execution and Docker verification;
+the subsequent per-finding citation check is locally tested. Gemini and authorized
+activation remain pending. See [the agent guide](backend/agents/README.md).
+
 ## Folders
 ```text
 FactoryOS/
@@ -41,7 +49,7 @@ FactoryOS/
 │   ├── reliability.py          # P1: checks + temporary legacy stub
 │   ├── schemas/incident.py     # Shared Pydantic input schema
 │   ├── storage/                # P1: database work pending
-│   ├── agents/                 # P2: AI agents pending
+│   ├── agents/                 # P2: Nemotron investigation, tools, grounded results
 │   ├── modernization/          # P2: fixture adapter, candidate patch, Docker tests
 │   └── integrations/           # P3: Jira, Slack, Solana pending
 ├── hardware/
