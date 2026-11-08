@@ -47,15 +47,8 @@ python -m uvicorn backend.main:app --reload
 ```
 Open http://127.0.0.1:8000/docs and http://127.0.0.1:8000/health. If PowerShell blocks activation, run `.\.venv\Scripts\python.exe` instead of `python`.
 
-**Terminal 2 — Simulated input and tests:**
-```powershell
-python hardware/simulator.py --mode normal
-python hardware/simulator.py --mode fault
-python -m pytest -q
-```
-On fault input the backend should detect `legacy_missed_fault` and `reliability.mismatch: true`.
 
-**Terminal 3 — Basic React dashboard:**
+**Terminal 2 — Basic React dashboard:**
 ```powershell
 cd frontend
 npm install
@@ -63,7 +56,7 @@ npm run dev
 ```
 Open http://127.0.0.1:5173. Requires Node.js 20+.
 
-## Connect your actual ELEGOO UNO R3
+## Terminal 3 - Connect your actual ELEGOO UNO R3
 
 1. Open `hardware/arduino/factoryos_arduino/factoryos_arduino.ino` in Arduino IDE.
 2. Install the Adafruit **DHT sensor library** and **Adafruit Unified Sensor**.
