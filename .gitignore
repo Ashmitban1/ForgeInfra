@@ -14,10 +14,11 @@ frontend/dist/
 # Local artifacts
 *.db
 *.sqlite*
+artifacts/modernization/
+.playwright-mcp/
 .DS_Store
 .vscode/
 .idea/
-
+.factoryos-incidents-backup.json
 .factoryos-jira.sqlite3*
-
 .factoryos-jira-live.json
