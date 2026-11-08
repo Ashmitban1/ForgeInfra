@@ -20,3 +20,5 @@ artifacts/modernization/
 .vscode/
 .idea/
 .factoryos-incidents-backup.json
+.factoryos-jira.sqlite3*
+.factoryos-jira-live.json
