@@ -59,6 +59,7 @@ class IncidentRepository(Protocol):
     def update_job(self, job_id: str, changes: dict) -> dict: ...
     def attach_job(self, job: dict) -> bool: ...
     def interrupt_incomplete(self) -> list[dict]: ...
+    def save_approval(self, incident_id: str, expected_incident: dict, approval: dict) -> bool: ...
 
 
 class MemoryIncidentRepository:
@@ -156,3 +157,14 @@ class MemoryIncidentRepository:
                                error=f"The previous {self.field} worker stopped; submit a new request key to retry.")
                     interrupted.append(deepcopy(job))
             return interrupted
+
+    def save_approval(self, incident_id: str, expected_incident: dict, approval: dict) -> bool:
+        from backend.modernization.approval import guarded_snapshot
+        with self.lock:
+            current = self.incidents.get(incident_id)
+            if current is None:
+                raise IncidentMissing(incident_id)
+            if guarded_snapshot(snapshot_of(current)) != guarded_snapshot(expected_incident):
+                return False
+            current["approval"] = deepcopy(approval)
+            return True

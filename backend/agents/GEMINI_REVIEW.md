@@ -145,8 +145,18 @@ duplicate submission reused the same review job. Telemetry aged beyond 90 second
 during manual browser interaction, and policy correctly required fresh evidence
 while retaining the verified candidate's eligibility for human review.
 
-One observed output-quality limitation: Gemini's risk prose described a physical
-fault even though input was simulated. Treat canonical `fault_is_simulated` and
-source-kind fields as authoritative in UI labels; model prose is advisory.
+After an observed simulation-wording error, reviews now require the structured
+`fault_provenance` field: SIMULATED, REPORTED, or UNKNOWN. The backend checks it
+against `hardware.fault_is_simulated` and rejects missing/contradictory values as
+INVALID_REVIEW. Real Arduino temperatures do not establish a physical fault when
+the fault switch is simulated. REPORTED also does not mean physically confirmed.
+
+Use backend-generated `decision_review.fault_context` (also in job result policy)
+for UI provenance labels and its `statement` for the equipment-health summary.
+`physical_fault_status` remains NOT_VERIFIED. The stricter prompt applies to both
+risks and explanation; free-text prose remains advisory. Old stored reviews remain
+readable and are marked `provenance_validation=NOT_VALIDATED`; new validated
+reviews are marked VALIDATED. Restart the backend to load the change and use a new
+idempotency key to request a new review rather than reusing an old result.
 The integrated chain also passes local scripted-provider tests, actual Docker
 checks, and disposable MongoDB persistence/restart checks.

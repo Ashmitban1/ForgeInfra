@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from backend.agents.gemini import GeminiClient, GeminiConfig, GeminiError
 from backend.agents.review import redact
-from backend.agents.review_schemas import ReviewConclusion
+from backend.agents.review_schemas import ReviewConclusion, fault_context
 
 
 def main() -> int:
@@ -26,18 +26,22 @@ def main() -> int:
             "incident": {"incident_id": "SYNTHETIC-GEMINI-CHECK",
                          "observed_at": datetime.now(timezone.utc).isoformat(),
                          "cooling_fault": True, "fault_is_simulated": True,
+                         "hardware": {"source_kind": "simulator", "fault_is_simulated": True},
                          "reported_status": "NORMAL", "expected_status": "WARNING"},
             "evidence": [{"evidence_id": "synthetic-evidence-1", "description": "Entirely fabricated test telemetry."}],
             "candidate": None,
         }
+        bundle["fault_context"] = fault_context(bundle["incident"])
         text, metadata = client.review(bundle, (
             "Review this entirely synthetic telemetry example. It contains no repair candidate "
             "or executable proof, so repair_assessment must be NO_CANDIDATE. Cite synthetic-evidence-1. "
             "Recommend only advisory actions, require human approval, and state that inputs are synthetic. "
+            "Set fault_provenance to SIMULATED. Never describe the simulated signal as a physical equipment fault. "
             "Return only the JSON object required by the supplied schema."
         ), ReviewConclusion.model_json_schema())
         conclusion = ReviewConclusion.model_validate_json(text)
-        if set(conclusion.evidence_ids) != {"synthetic-evidence-1"} or conclusion.repair_assessment != "NO_CANDIDATE":
+        if (set(conclusion.evidence_ids) != {"synthetic-evidence-1"}
+                or conclusion.repair_assessment != "NO_CANDIDATE" or conclusion.fault_provenance != "SIMULATED"):
             raise ValueError()
         result = redact({"provider_mode": "LIVE_GOOGLE_SYNTHETIC_INPUT_ONLY",
                          "provider": metadata, "result": conclusion.model_dump(),

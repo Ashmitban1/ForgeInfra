@@ -19,8 +19,8 @@ docker build -t factoryos-monitor:local backend/modernization/container
 python -m backend.modernization.testing --incident-id INC-COOLING-001
 ```
 
-See [the modernization workflow](backend/modernization/README.md). Approval,
-deployment, and live monitor activation remain pending.
+See [the modernization workflow](backend/modernization/README.md). Human approval
+is available through the P2 wrapper; deployment and live activation remain pending.
 
 **Person 2 step 4:** `python -m uvicorn backend.modernization.app:app --reload`
 adds incident-linked background repair jobs, analysis/report/diff reads, and frozen
@@ -42,6 +42,13 @@ captured evidence, source, diff, tests, and replay. Validated recommendations an
 deterministic policy results appear in the shared incident's `decision_review`
 and `/analysis`. Review jobs use a separate memory/MongoDB namespace. Human
 approval remains PENDING. See [the Gemini review guide](backend/agents/GEMINI_REVIEW.md).
+
+**Person 2 human gate:** Configure named reviewer bearer-token digests in
+`FACTORYOS_APPROVERS_JSON`, inspect GET `/api/incidents/{id}/approval`, then POST
+APPROVE/REJECT against the exact candidate/package hashes. Decisions and frozen
+evidence are audited atomically in the same incident. `/analysis` exposes current
+human approval separately from AI recommendations. Activation/PR creation remains
+separate. See [the human approval API](docs/HUMAN_APPROVAL_API.md).
 
 ## Folders
 ```text
@@ -115,4 +122,6 @@ Replace `COM3` with your actual port. `cooling_fault` is a **switch-simulated** 
 
 See `docs/GITHUB_PUSH.md` for push commands and `docs/TEAM_TASKS.md` for assignments. See `docs/API_CONTRACT.md` before adding new API endpoints.
 
-The backend currently has **no authentication** and uses **in-memory** storage. Keep it local/isolated until protected. `.env` and credentials are ignored by Git.
+Approval routes authenticate named reviewers; other backend routes remain
+unauthenticated and local storage is **in-memory**. Keep the complete backend
+local/isolated until protected. `.env` and credentials are ignored by Git.

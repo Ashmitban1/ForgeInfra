@@ -12,7 +12,7 @@ import pytest
 from backend.agents.gemini import GeminiClient, GeminiConfig, GeminiError, MODEL
 from backend.agents.review import ReviewService, apply_review_policy
 from backend.agents.review_router import create_review_router
-from backend.agents.review_schemas import ReviewConclusion
+from backend.agents.review_schemas import ReviewConclusion, fault_context
 from backend.agents.router import create_investigation_router
 from backend.modernization.router import create_modernization_router
 from backend.modernization.service import RepairService
@@ -53,6 +53,7 @@ def review_system(agent_system, tmp_path):
                 'repair_assessment': 'SUITABLE_FOR_HUMAN_REVIEW' if candidate else 'NO_CANDIDATE',
                 'risks': ['The fault input is simulated; software verification does not repair equipment.'],
                 'needs_human_approval': True, 'explanation': 'Review the captured mismatch and independently verified candidate if present.',
+                'fault_provenance': bundle['fault_context']['fault_provenance'],
             }
             if mode == 'unknown_evidence':
                 conclusion['evidence_ids'] = ['invented-evidence']
@@ -62,6 +63,10 @@ def review_system(agent_system, tmp_path):
                 conclusion['needs_human_approval'] = False
             if mode == 'leak':
                 conclusion['explanation'] += ' test-gemini-secret'
+            if mode == 'wrong_provenance':
+                conclusion['fault_provenance'] = 'REPORTED'
+            if mode == 'missing_provenance':
+                conclusion.pop('fault_provenance')
             if mode == 'disagree':
                 conclusion.update(recommendation='NO_ACTION', repair_assessment='SUITABLE_FOR_HUMAN_REVIEW')
             text = 'invalid JSON' if mode == 'bad_json' else json.dumps(conclusion)
@@ -112,6 +117,9 @@ def test_review_evidence_is_real_shared_and_idempotent(review_system):
         summary = client.get(job['links']['analysis']).json()['decision_review']
         assert summary['status'] == 'COMPLETED' and summary['recommendation'] == 'ESCALATE'
         assert summary['approval_status'] == 'PENDING' and not summary['deployed']
+        assert summary['fault_context']['fault_provenance'] == 'SIMULATED'
+        assert summary['fault_context']['physical_fault_status'] == 'NOT_VERIFIED'
+        assert summary['provenance_validation'] == 'VALIDATED'
         assert base.get_incident_snapshot('INC-AGENT-TEST')['decision_review']['job_id'] == job['job_id']
         repeated = client.post('/api/incidents/INC-AGENT-TEST/review', headers={'Idempotency-Key': 'review-once'})
         assert repeated.status_code == 200 and repeated.json()['job_id'] == job['job_id'] and repeated.json()['reused']
@@ -154,7 +162,8 @@ def test_missing_gemini_credentials_fail_before_queueing(review_system):
         assert review.repository.jobs == {} and seen == []
 
 
-@pytest.mark.parametrize('mode', ['bad_json', 'unknown_evidence', 'unsafe_action', 'no_approval', 'auth'])
+@pytest.mark.parametrize('mode', ['bad_json', 'unknown_evidence', 'unsafe_action', 'no_approval', 'auth',
+                                'wrong_provenance', 'missing_provenance'])
 def test_invalid_recommendations_never_become_completed_reviews(review_system, mode):
     app, base, review, seen = review_system(mode)
     with TestClient(app) as client:
@@ -167,6 +176,18 @@ def test_invalid_recommendations_never_become_completed_reviews(review_system, m
         assert 'test-gemini-secret' not in str(job) + str(summary)
 
 
+@pytest.mark.parametrize('hardware,expected', [
+    ({'source_kind': 'simulator', 'fault_is_simulated': True}, 'SIMULATED'),
+    ({'source_kind': 'arduino_serial', 'fault_is_simulated': True}, 'SIMULATED'),
+    ({'source_kind': 'arduino_serial', 'fault_is_simulated': False}, 'REPORTED'),
+    ({'source_kind': 'arduino_serial'}, 'UNKNOWN'),
+])
+def test_fault_provenance_never_infers_physical_failure_from_source(hardware, expected):
+    context = fault_context({'hardware': hardware})
+    assert context['fault_provenance'] == expected
+    assert context['physical_fault_status'] == 'NOT_VERIFIED'
+
+
 def test_secret_redaction_in_valid_model_output(review_system):
     app, base, review, seen = review_system('leak')
     with TestClient(app) as client:
@@ -175,6 +196,19 @@ def test_secret_redaction_in_valid_model_output(review_system):
         assert job['status'] == 'COMPLETED'
         assert 'test-gemini-secret' not in str(job)
         assert '[REDACTED]' in job['result']['explanation']
+
+
+def test_legacy_review_remains_readable_without_claiming_provenance_validation(review_system):
+    app, base, review, seen = review_system()
+    with TestClient(app) as client:
+        investigate(client)
+        job = submit_review(client)
+        review.repository.jobs[job['job_id']]['result'].pop('fault_provenance')
+        assert client.get(job['links']['job']).status_code == 200
+        summary = client.get(job['links']['analysis']).json()['decision_review']
+        assert summary['provenance_validation'] == 'NOT_VALIDATED'
+        assert summary['fault_context']['fault_provenance'] == 'SIMULATED'
+        assert summary['fault_context']['physical_fault_status'] == 'NOT_VERIFIED'
 
 
 def test_changed_evidence_while_provider_runs_marks_review_stale(review_system):

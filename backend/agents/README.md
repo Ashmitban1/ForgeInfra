@@ -54,7 +54,7 @@ curl -X POST -H 'Idempotency-Key: investigation-demo-1' \
 | `GET /api/investigations/{job_id}` | Poll complete progress, actual tool traces, provider metadata, evidence manifest, final findings |
 | `GET /api/investigations/{job_id}/patch` | Plain-text model-generated diff once a final investigation result contains a candidate |
 | `GET /api/incidents/{id}/analysis` | Existing repair/AI view; investigation progress is attached to the same canonical incident |
-| `GET /api/agents/capabilities` | Route support, NVIDIA configuration, Gemini review/configuration flags, storage backend; approval/deploy remain false |
+| `GET /api/agents/capabilities` | Route support, NVIDIA/Gemini configuration, approval support/configuration, storage backend; automatic deploy remains false |
 
 Check `configured` to distinguish installed routes from configured credentials.
 It is not a live-provider health claim. Missing/invalid configuration returns 503
@@ -212,5 +212,6 @@ results, not a guarantee of later provider availability. Local evidence is saved
 under ignored `artifacts/modernization/playwright-live-e2e-results.json`.
 
 Gemini review is implemented separately in step 6; see [the review guide](GEMINI_REVIEW.md).
+Human decisions are available through the [authenticated approval API](../../docs/HUMAN_APPROVAL_API.md).
 Existing deterministic alerting does not wait for either model. Shared authentication, Atlas writer integration,
 frontend evidence binding, and authorized activation remain separate team work.

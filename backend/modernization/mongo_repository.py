@@ -148,3 +148,16 @@ class MongoIncidentRepository:
              "error": f"The previous {self.field} worker stopped; submit a new request key to retry."}},
         )
         return [self.get_job(job["job_id"]) for job in active]
+
+    def save_approval(self, incident_id: str, expected_incident: dict, approval: dict) -> bool:
+        from backend.modernization.approval import GUARDED_FIELDS, guarded_snapshot
+        current = self.incidents.find_one({"incident_id": incident_id})
+        if current is None:
+            raise IncidentMissing(incident_id)
+        if guarded_snapshot(snapshot_of(current)) != guarded_snapshot(expected_incident):
+            return False
+        query = {"_id": current["_id"]}
+        for key in GUARDED_FIELDS:
+            query[key] = current[key] if key in current else {"$exists": False}
+        result = self.incidents.update_one(query, {"$set": {"approval": deepcopy(approval)}})
+        return result.matched_count == 1

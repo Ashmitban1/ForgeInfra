@@ -28,7 +28,7 @@ def public_investigation(job: dict) -> dict:
     return result
 
 
-def create_investigation_router(service, review_service=None) -> APIRouter:
+def create_investigation_router(service, review_service=None, approval_service=None) -> APIRouter:
     @asynccontextmanager
     async def lifespan(app):
         service.start()
@@ -58,7 +58,8 @@ def create_investigation_router(service, review_service=None) -> APIRouter:
                 "storage_backend": service.repository.backend, "gemini": review_service is not None,
                 "review": review_service is not None, "gemini_configured": gemini_configured,
                 "gemini_model": gemini_model,
-                "automatic_deploy": False, "approval": False}
+                "automatic_deploy": False, "approval": approval_service is not None,
+                "approval_configured": approval_service.configured() if approval_service else False}
 
     @router.post("/api/incidents/{incident_id}/investigate", status_code=202, responses={
         200: {"description": "Reused completed or failed investigation"},

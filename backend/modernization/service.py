@@ -45,7 +45,8 @@ class RepairService:
                 self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="factoryos-" + self.job_kind)
 
     def prepare_snapshot(self, snapshot: dict) -> dict:
-        return snapshot
+        # Human audit packages must never recursively enter future repair jobs.
+        return {key: value for key, value in snapshot.items() if key != "approval"}
 
     def validate_snapshot(self, snapshot: dict):
         incident_event(snapshot)

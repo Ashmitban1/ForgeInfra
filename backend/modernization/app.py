@@ -16,11 +16,15 @@ from backend.agents.router import create_investigation_router
 from backend.agents.service import InvestigationService
 from backend.agents.review import ReviewService
 from backend.agents.review_router import create_review_router
+from backend.modernization.approval import ApprovalService
+from backend.modernization.approval_router import create_approval_router
 
 repository = MemoryIncidentRepository(_incidents, _lock)
 service = RepairService(repository)
 investigation_service = InvestigationService(repository.for_investigations())
 review_service = ReviewService(repository.for_reviews(), repository.for_investigations())
-app.include_router(create_modernization_router(service, investigation_service, review_service))
-app.include_router(create_investigation_router(investigation_service, review_service))
+approval_service = ApprovalService(repository, repository.for_investigations(), review_service)
+app.include_router(create_modernization_router(service, investigation_service, review_service, approval_service))
+app.include_router(create_investigation_router(investigation_service, review_service, approval_service))
 app.include_router(create_review_router(review_service))
+app.include_router(create_approval_router(approval_service))

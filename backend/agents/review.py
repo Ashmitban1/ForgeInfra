@@ -11,7 +11,7 @@ import time
 
 from backend.agents.gemini import GeminiClient, GeminiConfig, GeminiError
 from backend.agents.review_schemas import (
-    ReviewConclusion, decision_review_summary, material_incident, review_job_view,
+    ReviewConclusion, decision_review_summary, fault_context, material_incident, review_job_view,
 )
 from backend.agents.schemas import InvestigationConclusion
 from backend.modernization.patching import DEFAULT_OUTPUT_ROOT
@@ -29,7 +29,13 @@ Cite only evidence_id values in the manifest. State uncertainty and simulation l
 Recommend only the schema's advisory actions. No tools or actions are executed by you.
 A suitable candidate still requires HUMAN approval; needs_human_approval must be true.
 Missing or failed tests cannot support SUITABLE_FOR_HUMAN_REVIEW. With no candidate,
-use NO_CANDIDATE. Equipment faults remain present even when a software replay succeeds.
+use NO_CANDIDATE. A software replay does not establish physical equipment health.
+Copy fault_provenance exactly from the backend fault_context. SIMULATED means only
+a simulated cooling-fault signal: never describe it as a physical fault present on
+equipment. This applies to ALL prose, including risks and explanation. An Arduino
+may measure real temperature while its cooling-fault switch is still simulated.
+REPORTED means a reported signal, not a confirmed physical failure. UNKNOWN means
+provenance is unavailable. In every case physical equipment health is NOT_VERIFIED.
 Do not claim a live deployment, physical repair, merge, approval, ticket, or notification.
 The fixture is team-authored representative software, not Northmark production source.
 Return only the JSON object required by the response schema. Do not include reasoning
@@ -85,6 +91,7 @@ def build_review_snapshot(incident: dict, investigations) -> dict:
         "basis": {"investigation_job_id": source["job_id"], "incident_revision": source["snapshot_revision"],
                   "investigation_result_revision": content_revision(result)},
         "incident": deepcopy(source["snapshot"]), "nemotron": findings,
+        "fault_context": fault_context(source["snapshot"]),
         "evidence": evidence, "candidate": deepcopy(result.get("generated_repair")),
     }
     if len(json.dumps(bundle).encode("utf-8")) > 200_000:
@@ -151,6 +158,7 @@ def apply_review_policy(conclusion: ReviewConclusion, bundle: dict) -> dict:
         "effective_recommendation": effective, "advisory_actions": actions,
         "repair_review_eligible": eligible, "requires_fresh_telemetry": stale,
         "observation_age_seconds": round(age, 2), "reasons": reasons,
+        "fault_context": fault_context(incident),
         "needs_human_approval": True, "approval_status": "PENDING", "actions_executed": [], "deployed": False,
     }
 
@@ -201,7 +209,11 @@ class ReviewService(RepairService):
         view = review_job_view(incident, job)
         if view["current"] and view.get("result"):
             conclusion = ReviewConclusion.model_validate({
-                key: value for key, value in view["result"].items() if key != "policy"
+                **{key: value for key, value in view["result"].items() if key != "policy"},
+                # Old persisted reviews lack the new model field. Derive it only
+                # for policy calculation; retain their raw result and mark them
+                # NOT_VALIDATED in the canonical review summary.
+                "fault_provenance": view["result"].get("fault_provenance", fault_context(job["snapshot"])["fault_provenance"]),
             })
             view["result"]["policy"] = apply_review_policy(conclusion, job["snapshot"]["review_input"])
         return view
@@ -245,6 +257,8 @@ class ReviewService(RepairService):
                 conclusion = ReviewConclusion.model_validate_json(text)
                 known = {item["evidence_id"] for item in bundle["evidence"]}
                 if not set(conclusion.evidence_ids).issubset(known):
+                    raise ValueError()
+                if conclusion.fault_provenance != fault_context(bundle["incident"])["fault_provenance"]:
                     raise ValueError()
             except ValueError:
                 raise GeminiError("INVALID_REVIEW", "Gemini returned an invalid or ungrounded recommendation") from None

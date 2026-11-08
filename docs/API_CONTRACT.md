@@ -1,6 +1,6 @@
 # FactoryOS API contract (v1)
 
-Base: `http://127.0.0.1:8000`. Owner P1: `GET /health`, `POST /api/telemetry`, `GET /api/telemetry/latest`, `GET /api/incidents`, `GET /api/incidents/{incident_id}` (implemented, in-memory). P2 implemented via `backend.modernization.app:app`: incident `/investigate`, `/review`, `/analysis`, `/repair`; investigation/review job reads; investigation patch and repair report/diff reads. P3 notification/approval routes are not registered on this branch. See [the modernization API](MODERNIZATION_API.md), [Nemotron guide](../backend/agents/README.md), and [Gemini guide](../backend/agents/GEMINI_REVIEW.md).
+Base: `http://127.0.0.1:8000`. Owner P1: `GET /health`, `POST /api/telemetry`, `GET /api/telemetry/latest`, `GET /api/incidents`, `GET /api/incidents/{incident_id}` (implemented, in-memory). P2 implemented via `backend.modernization.app:app`: incident `/investigate`, `/review`, `/analysis`, `/repair`, authenticated GET/POST `/approval` and GET `/approval/history`; investigation/review job reads; investigation patch and repair report/diff reads. P3 notifications and approval UI remain separate integrations. See [the modernization API](MODERNIZATION_API.md), [Nemotron guide](../backend/agents/README.md), [Gemini guide](../backend/agents/GEMINI_REVIEW.md), and [human approval guide](HUMAN_APPROVAL_API.md).
 
 ## Input: POST /api/telemetry
 ```json
@@ -85,6 +85,13 @@ Its `recommendation` is the backend policy's effective recommendation;
 `model_recommendation` preserves the model's original choice. Job responses expose
 raw structured output in `result`, with `result.policy.effective_recommendation`.
 
+New reviews require `result.fault_provenance` (SIMULATED, REPORTED, UNKNOWN),
+validated against captured simulation flags. Backend-generated `fault_context`
+in policy and canonical review summaries supplies authoritative provenance labels,
+a safe equipment-health statement, and `physical_fault_status=NOT_VERIFIED`.
+Arduino source kind alone does not prove the fault signal is physical. Historical
+reviews without this field remain readable with provenance_validation=NOT_VALIDATED.
+
 Allowed recommendations: ESCALATE, INVESTIGATE_SOFTWARE, REQUEST_REPAIR_REVIEW,
 COLLECT_MORE_EVIDENCE, NO_ACTION. Actions are advisory allowlisted strings. Missing
 or failed test/replay proof cannot qualify a repair; model output cannot suppress
@@ -95,3 +102,31 @@ messages, change operational incident status, or activate the monitor.
 Review jobs use a separate `review_jobs` MongoDB collection over the same canonical
 incidents, or a separate job dictionary over P1's same memory dict/lock. The local
 wrapper remains memory-backed. Atlas writer integration is still separate.
+
+## Human decision extension (Person 2)
+
+Authenticated GET `/api/incidents/{id}/approval` returns the exact evidence package,
+`package_revision`, `candidate_revision`, current status, and `blocking_reasons`.
+POST the same path with decision APPROVE/REJECT, both hashes, and optional comment.
+The backend resolves reviewer identity from a per-reviewer bearer credential
+configured in `FACTORYOS_APPROVERS_JSON` and records UTC time. Client actor fields
+are forbidden. GET `/approval/history` returns frozen packages and decisions.
+
+POST returns 201 for a new decision or 200 for an idempotent retry. Auth errors:
+401; missing auth configuration/storage: 503; missing incident: 404; invalid body:
+422; stale/changed evidence, blocked approval, conflicting final decision or reused
+key with another body: 409. Rejection can remain available when approval is blocked.
+Decisions are final per package. Idempotency is scoped by incident and reviewer.
+
+The canonical incident stores an additive `approval` aggregate. `/analysis` adds
+its derived current summary: PENDING, APPROVED, REJECTED, or STALE. AI reports keep
+their original pending-approval fields; P3 must use `analysis.approval` for human
+decisions. Removing an approving reviewer or changing/aging evidence invalidates
+execution eligibility without rewriting history. Capabilities add approval support
+and `approval_configured`; automatic deployment remains false.
+
+Frozen package/history changes use one locked/atomic canonical-incident update.
+`ApprovalService.require_approved` rechecks the exact current binding for the future
+execution worker. This endpoint itself activates no monitor and performs no merge,
+deployment, PR creation, or notifications. Other existing routes are still local
+unauthenticated prototype routes.

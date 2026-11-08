@@ -18,6 +18,21 @@ def material_incident(incident: dict) -> dict:
     return jsonable_encoder({key: deepcopy(incident[key]) for key in MATERIAL_FIELDS if key in incident})
 
 
+def fault_context(incident: dict) -> dict:
+    """A real sensor channel does not make a switch-simulated fault physical."""
+    hardware = incident.get("hardware") or {}
+    simulated = hardware.get("fault_is_simulated")
+    provenance = "SIMULATED" if simulated is True else "REPORTED" if simulated is False else "UNKNOWN"
+    statements = {
+        "SIMULATED": "This is a simulated cooling-fault signal. Physical equipment health has not been verified.",
+        "REPORTED": "Telemetry reports a cooling-fault signal. A physical equipment failure has not been independently verified.",
+        "UNKNOWN": "Cooling-fault provenance is unknown. Physical equipment health has not been verified.",
+    }
+    return {"fault_provenance": provenance, "fault_is_simulated": simulated if type(simulated) is bool else None,
+            "source_kind": hardware.get("source_kind", "unknown"), "physical_fault_status": "NOT_VERIFIED",
+            "statement": statements[provenance]}
+
+
 class ReviewConclusion(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     recommendation: Literal[
@@ -35,6 +50,7 @@ class ReviewConclusion(BaseModel):
     risks: list[str] = Field(max_length=8)
     needs_human_approval: Literal[True]
     explanation: str = Field(min_length=1, max_length=3000)
+    fault_provenance: Literal["SIMULATED", "REPORTED", "UNKNOWN"]
 
 
 def review_is_current(incident: dict, job: dict) -> bool:
@@ -73,6 +89,8 @@ def decision_review_summary(job: dict) -> dict:
         "severity": result.get("severity"), "actions": [] if stale else (policy or {}).get("advisory_actions", []),
         "evidence_ids": result.get("evidence_ids", []), "risks": result.get("risks", []),
         "repair_assessment": result.get("repair_assessment"), "explanation": result.get("explanation"),
+        "fault_context": fault_context(job["snapshot"]["review_input"]["incident"]),
+        "provenance_validation": "VALIDATED" if result.get("fault_provenance") else "NOT_VALIDATED",
         "needs_human_approval": True, "approval_status": "PENDING", "deployed": False,
         "policy": policy, "provider_calls": deepcopy(job.get("provider_calls", [])),
         "stale": stale, "error": deepcopy(job.get("error")),
