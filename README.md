@@ -6,13 +6,21 @@ GitHub-ready **three-person team repository**. FactoryOS is a proof-of-concept f
 
 ✅ FastAPI telemetry API, deterministic mismatch checks, simple in-memory incidents, basic tests; ✅ Arduino UNO sketch + serial gateway + simulator; ✅ minimal React/Vite dashboard reading backend data; ✅ GitHub Actions Python test workflow.
 
-**Not yet implemented or verified:** physical Arduino connection; real legacy application modernization; Nemotron/Gemini; Jira/Slack; GitHub PR automation; Tiger Data/MongoDB; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software.
+**Not yet implemented or verified:** physical Arduino connection; AI-driven repair generation; Nemotron/Gemini; Jira/Slack; GitHub PR automation; Tiger Data/MongoDB; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software.
 
 **Person 2's runnable baseline:** `fixtures/legacy_monitor/monitor.py` is a
 standalone, team-authored temperature-only monitor with JSON samples, an execution
 adapter, and characterization tests. See [the fixture guide](fixtures/legacy_monitor/README.md).
-The cooling-fault defect is intentionally preserved; repairs and live backend
-integration are still pending.
+The original cooling-fault defect is intentionally preserved. A separate manually
+authored candidate can be verified with Docker-backed before/after tests:
+
+```sh
+docker build -t factoryos-monitor:local backend/modernization/container
+python -m backend.modernization.testing --incident-id INC-COOLING-001
+```
+
+See [the modernization workflow](backend/modernization/README.md). Approval,
+deployment, and live backend integration remain pending.
 
 ## Folders
 ```text
@@ -28,7 +36,7 @@ FactoryOS/
 │   ├── schemas/incident.py     # Shared Pydantic input schema
 │   ├── storage/                # P1: database work pending
 │   ├── agents/                 # P2: AI agents pending
-│   ├── modernization/          # P2: legacy fixture and repair pending
+│   ├── modernization/          # P2: fixture adapter, candidate patch, Docker tests
 │   └── integrations/           # P3: Jira, Slack, Solana pending
 ├── hardware/
 │   ├── arduino/factoryos_arduino/factoryos_arduino.ino

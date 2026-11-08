@@ -6,7 +6,6 @@ The same option will let a future candidate pass without expected-failure marks.
 
 import pytest
 
-from backend.modernization.runner import run_legacy_monitor
 from backend.schemas.incident import TelemetryEvent
 
 
@@ -33,8 +32,8 @@ def monitor_event(temperature: float, cooling_fault: bool) -> TelemetryEvent:
         pytest.param(36, True, "WARNING", id="high-temperature-with-fault"),
     ],
 )
-def test_monitor_preserves_temperature_behavior(temperature, cooling_fault, required_status):
-    result = run_legacy_monitor(monitor_event(temperature, cooling_fault))
+def test_monitor_preserves_temperature_behavior(monitor, temperature, cooling_fault, required_status):
+    result = monitor(monitor_event(temperature, cooling_fault))
     assert result["status"] == required_status
 
 
@@ -43,8 +42,8 @@ def test_monitor_preserves_temperature_behavior(temperature, cooling_fault, requ
     raises=AssertionError,
     reason="Known original defect: a cooling fault below the temperature threshold is ignored",
 )
-def test_cooling_fault_requires_warning():
-    result = run_legacy_monitor(monitor_event(29.4, True))
+def test_cooling_fault_requires_warning(monitor):
+    result = monitor(monitor_event(29.4, True))
     assert result["status"] == "WARNING", (
         "Cooling fault must produce WARNING at 29.4 C; "
         f"monitor returned {result['status']} ({result['source_revision']})"

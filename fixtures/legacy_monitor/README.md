@@ -3,7 +3,8 @@
 This application was authored for FactoryOS's controlled modernization demo.
 It is not Northmark software or an imported production system. It represents an
 older temperature-only monitor that has not adopted a newer cooling-fault input.
-No repair or AI integration is implemented in this fixture.
+This original intentionally remains defective. A separate manually authored
+candidate repair can now be generated and tested in Docker; AI is not integrated.
 
 ## Run on macOS
 
@@ -68,10 +69,21 @@ Normal `python -m pytest -q` runs mark this one known defect as **XFAIL** using
 `strict=True` and `raises=AssertionError`. Execution errors still fail the suite;
 an unexpected pass also fails so a changed original cannot silently go unnoticed.
 `--runxfail` disables that mark and applies the actual acceptance criterion.
-Future candidate verification must use `--runxfail` too, so the candidate must
-pass every requirement. Candidate execution and repair generation are step 3.
+Candidate verification also uses `--runxfail`, requiring every acceptance case to
+pass. Start Docker and run step 3 from the repository root:
 
-The adapter only executes this known fixture with a fixed command and timeout.
-It is not a sandbox for AI-generated code. Candidate execution needs a separate
-isolation design. Person 1's live API still uses its existing stub until the
-adapter and source revision are explicitly wired into the shared backend.
+```sh
+docker build -t factoryos-monitor:local backend/modernization/container
+python -m backend.modernization.testing --incident-id INC-COOLING-001
+```
+
+This saves separate original/candidate source copies, a diff, real test/container
+output, and `report.json` under `artifacts/modernization/repair-<unique-id>/`.
+Expected: original 4 passed / 1 failed; candidate 5 passed; approval PENDING.
+The candidate is manually authored and is not deployed. See
+`backend/modernization/README.md` for restrictions, report fields, and failure states.
+
+The step 1 adapter only executes this known fixture with a fixed command and
+timeout; it is not a sandbox. Step 3 uses Docker for both versions and never
+falls back to host execution. Person 1's live API still uses its existing stub
+until an adapter and evaluated source revision are explicitly wired into it.
