@@ -1,8 +1,9 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useMemo } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { isDemoMode } from '../demo/fixtures.js';
 import { classifyStatus, deviceHealth, repairVerification } from '../lib/health.js';
 import { formatNumber } from '../lib/format.js';
+import { PIPELINE_WIDTH, rackLayout, shortDeviceLabel } from '../lib/dataHallLayout.js';
 
 // Mission-control scene. Every color, label and animation trigger comes from API data:
 //  - rack LEDs / glow  <- deviceHealth() of the latest telemetry
@@ -15,7 +16,7 @@ const C = { ok: '#8cc83c', fault: '#ff7484', review: '#efbb70', muted: '#8796a4'
 const STATE_COLOR = { fault: C.fault, review: C.review, nominal: C.ok, recovered: C.ok, stale: C.muted };
 const STAGE_COLOR = { done: C.ok, active: C.info, failed: C.fault, pending: C.muted, unknown: C.review };
 
-const W = 960;
+const W = PIPELINE_WIDTH;
 const NODES = {
   sensors: { x: 70, y: 285 },
   api: { x: 215, y: 285 },
@@ -32,6 +33,32 @@ const EDGES = [
 ];
 const NODE_R = 24;
 
+function RackLabel({ id, x, y, width }) {
+  const ref = useRef(null);
+  const clipId = useId();
+  const maxWidth = width - 20;
+  const [label, setLabel] = useState(() => shortDeviceLabel(id, maxWidth));
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const original = node.textContent;
+    const fitted = shortDeviceLabel(id, maxWidth, candidate => {
+      node.textContent = candidate;
+      return node.getComputedTextLength();
+    });
+    node.textContent = original;
+    setLabel(fitted);
+  }, [id, maxWidth]);
+  return <>
+    <defs><clipPath id={clipId}><rect x={x + 10} y={y + 7} width={maxWidth} height={21} /></clipPath></defs>
+    <text ref={ref} className="hall-rack-label" x={x + width / 2} y={y + 22}
+      textAnchor="middle" fill="#f5f7f9" fontSize="12" fontWeight="700"
+      fontFamily="ui-monospace, Menlo, monospace" clipPath={`url(#${clipId})`} aria-hidden="true">
+      {label}
+    </text>
+  </>;
+}
+
 function RackSilhouette({ device, x, width, now, history, ring, reduce }) {
   const health = deviceHealth(device, now, history);
   const hw = device.hardware ?? {};
@@ -43,10 +70,12 @@ function RackSilhouette({ device, x, width, now, history, ring, reduce }) {
     { id: 'fresh', color: health.stale ? C.review : C.ok },
     { id: 'temp', color: health.stale ? C.muted : hw.temperature_c > 35 ? C.fault : C.ok },
   ];
-  const h = 150;
-  const y = 28;
+  const h = 154;
+  const y = 24;
   return (
-    <g>
+    <g className="hall-rack" role="img" tabIndex={0}
+      aria-label={`${device.device_id}; ${formatNumber(hw.temperature_c)} degrees Celsius; ${health.state}`}>
+      <title>{device.device_id} · {formatNumber(hw.temperature_c)} °C · {health.state}</title>
       <motion.rect
         x={x} y={y} width={width} height={h} rx={9}
         fill="#10171d" strokeWidth={1.5}
@@ -62,20 +91,18 @@ function RackSilhouette({ device, x, width, now, history, ring, reduce }) {
       )}
       {slots.map((slot, i) => (
         <g key={slot.id}>
-          <rect x={x + 10} y={y + 36 + i * 21} width={width - 20} height={14} rx={3} fill="#222c35" />
+          <rect x={x + 10} y={y + 42 + i * 21} width={width - 20} height={14} rx={3} fill="#222c35" />
           {[0, 1, 2].map(k => (
-            <rect key={k} x={x + 16 + k * 7} y={y + 40 + i * 21} width={4} height={6} rx={1} fill="#44515c" />
+            <rect key={k} x={x + 16 + k * 7} y={y + 46 + i * 21} width={4} height={6} rx={1} fill="#44515c" />
           ))}
           <motion.circle
-            cx={x + width - 20} cy={y + 43 + i * 21} r={4}
+            cx={x + width - 20} cy={y + 49 + i * 21} r={4}
             initial={false} animate={{ fill: slot.color }} transition={{ duration: 0.5 }}
           />
         </g>
       ))}
-      <text x={x + width / 2} y={y + 20} textAnchor="middle" fill="#f5f7f9" fontSize="12" fontWeight="700" fontFamily="ui-monospace, Menlo, monospace">
-        {device.device_id}
-      </text>
-      <text x={x + width / 2} y={y + h + 17} textAnchor="middle" fill={color} fontSize="12" fontWeight="700">
+      <RackLabel id={device.device_id} x={x} y={y} width={width} />
+      <text className="hall-rack-temperature" x={x + width / 2} y={y + h + 23} textAnchor="middle" fill={color} fontSize="12" fontWeight="700">
         {formatNumber(hw.temperature_c)} °C
       </text>
       <AnimatePresence>
@@ -161,11 +188,10 @@ export default function DataHall({ devices, history, now, incidents, telemetryEr
       verification?.state === 'running' ? 'repair' : null].filter(Boolean),
   );
 
-  const visible = devices.slice(0, 8);
-  const gap = 14;
-  const rackW = Math.min(118, (W - 80 - gap * (visible.length - 1)) / Math.max(visible.length, 1));
-  const total = visible.length * rackW + (visible.length - 1) * gap;
-  const startX = (W - total) / 2;
+  const layout = rackLayout(devices.length);
+  const visible = devices.slice(0, layout.count);
+  const { width: rackW, gap, startX, sceneWidth } = layout;
+  const pipelineOffset = (sceneWidth - W) / 2;
 
   const rings = {};
   for (const t of transitions) {
@@ -188,17 +214,17 @@ export default function DataHall({ devices, history, now, incidents, telemetryEr
         {demo ? <span className="badge badge-sample">Demo data — not from the backend</span> : <span className="badge badge-info">Live from API</span>}
         <span className="muted hall-hint">Packets appear only when a new reading arrives. Pipeline stages show backend status verbatim.</span>
       </div>
-      <div className="hall-scroll">
-        <svg className="hall-svg" viewBox={`0 0 ${W} 400`} role="img" aria-label={summary}>
+      <div className="hall-scroll" tabIndex={0} role="region" aria-label="Data hall diagram; scroll horizontally to explore all racks">
+        <svg className="hall-svg" style={{ minWidth: sceneWidth }} viewBox={`0 0 ${sceneWidth} 400`} role="group" aria-label={summary}>
           <defs>
             <linearGradient id="floor" x1="0" x2="0" y1="0" y2="1">
               <stop offset="0" stopColor="#5aa9ff" stopOpacity="0.07" />
               <stop offset="1" stopColor="#5aa9ff" stopOpacity="0" />
             </linearGradient>
           </defs>
-          <rect x="0" y="0" width={W} height="215" fill="url(#floor)" rx="12" />
+          <rect x="0" y="0" width={sceneWidth} height="225" fill="url(#floor)" rx="12" />
           {visible.length === 0 && (
-            <text x={W / 2} y="110" textAnchor="middle" fill="#93a1c0" fontSize="14">
+            <text x={sceneWidth / 2} y="110" textAnchor="middle" fill="#93a1c0" fontSize="14">
               {loading ? 'Connecting to the data hall…' : 'No racks have reported telemetry yet.'}
             </text>
           )}
@@ -209,9 +235,10 @@ export default function DataHall({ devices, history, now, incidents, telemetryEr
             />
           ))}
           {devices.length > visible.length && (
-            <text x={W - 20} y="205" textAnchor="end" fill="#93a1c0" fontSize="11">+{devices.length - visible.length} more racks below</text>
+            <text x={sceneWidth - 20} y="222" textAnchor="end" fill="#93a1c0" fontSize="11">+{devices.length - visible.length} more racks below</text>
           )}
 
+          <g transform={`translate(${pipelineOffset} 0)`}>
           {EDGES.map(edge => {
             const a = nodePos(edge[0]);
             const b = nodePos(edge[1]);
@@ -262,9 +289,14 @@ export default function DataHall({ devices, history, now, incidents, telemetryEr
               </g>
             );
           })}
+          </g>
         </svg>
       </div>
-      <p className="hall-swipe muted">Swipe sideways to see the full pipeline.</p>
+      <p className="hall-swipe muted">Scroll sideways to explore the racks and pipeline.</p>
+      {devices.length > 0 && <details className="hall-device-details">
+        <summary>Full device IDs ({devices.length})</summary>
+        <ul>{devices.map(device => <li key={device.device_id}><code>{device.device_id}</code><span>{formatNumber(device.hardware?.temperature_c)} °C</span></li>)}</ul>
+      </details>}
       <ul className="hall-legend" aria-label="Legend">
         <li><i style={{ background: C.ok }} />Nominal / complete</li>
         <li><i style={{ background: C.fault }} />Fault / mismatch / failed</li>

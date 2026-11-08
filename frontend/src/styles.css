@@ -381,3 +381,21 @@ body::after {
   body::before, body::after { animation: none; }
   .tool-scan, .live-dot::before { animation: none; }
 }
+
+/* SVG labels are measured/truncated in user units, not with HTML ellipsis. */
+.hall-scroll { max-width: 100%; min-width: 0; padding-block: 4px; scrollbar-color: var(--muted) var(--bg-2); }
+.hall-rack:focus { outline: none; }
+.hall-rack:focus-visible > rect:first-of-type { stroke: var(--cyan); stroke-width: 3; }
+.hall-device-details { margin-top: 12px; font-size: 12px; color: var(--muted); }
+.hall-device-details summary { cursor: pointer; padding: 6px 0; }
+.hall-device-details ul { list-style: none; padding: 0; margin: 8px 0; }
+.hall-device-details li { display: flex; align-items: baseline; gap: 16px; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.hall-device-details code { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+.hall-device-details li > span { flex-shrink: 0; font-family: var(--mono); }
+.hall-swipe { display: block; }
+.hall-rack:focus-visible { filter: drop-shadow(0 0 3px var(--cyan)); }
+/* Full IDs remain readable in the companion cards and event detail on mobile. */
+.rack-top > strong { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.rack-top > span { flex-shrink: 0; }
+.event { grid-template-columns: 70px 16px minmax(0, 1fr); }
+.event > div { min-width: 0; overflow-wrap: anywhere; }
