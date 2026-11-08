@@ -1,0 +1,91 @@
+/* Architecture workflow: hand-sketched blueprint that settles into a metallic diagram.
+   Default state is the complete static diagram; motion classes are added by JS only when allowed. */
+.architecture-section .architecture-canvas { min-width: 1380px; padding: 0 4px 0 44px; background-color: #0f141a; background-image: linear-gradient(#ffffff1c 1px, transparent 1px), linear-gradient(90deg, #ffffff1c 1px, transparent 1px); background-size: 32px 32px; background-position: 0 0; border: 1px solid #1f2933; border-radius: 10px; }
+.architecture-section .architecture-phases { gap: 56px; position: relative; z-index: 0; }
+.architecture-section .phase-group { border: 0; padding: 16px 14px; background: transparent; transition: none; }
+.architecture-section .phase-group:hover, .architecture-section .phase-group:focus-within, .architecture-section .phase-group.is-selected { background: transparent; }
+
+.bp-svg { position: absolute; top: 0; left: 0; z-index: 2; pointer-events: none; overflow: visible; }
+.bp-svg path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.bp-line { stroke: #b6c2cd; stroke-width: 1.6; transition: stroke .2s, stroke-width .2s; }
+.bp-line.is-lit { stroke: #76b900; stroke-width: 2.2; }
+.bp-intro { stroke: #dce2e8; }
+.bp-pencil { stroke: #7e8d9a; stroke-width: 1; opacity: .5; }
+.bp-boundary { stroke: #6b7a87; stroke-width: 1.4; stroke-dasharray: 2 6; transition: stroke .2s; }
+.bp-boundary.is-lit { stroke: #aebdca; }
+.bp-notify { stroke: #5aa9ff; stroke-width: 1.5; stroke-dasharray: 5 6; opacity: .85; transition: stroke-width .2s, opacity .2s; }
+.bp-notify.bp-head { stroke-dasharray: none; }
+.bp-notify.is-lit { stroke-width: 2.4; opacity: 1; filter: drop-shadow(0 0 4px #5aa9ff88); }
+.bp-head { stroke-dasharray: none; }
+.bp-mask { stroke: #fff; stroke-width: 8; stroke-dasharray: 1; stroke-dashoffset: 0; }
+.dr { stroke-dasharray: 1; }
+
+/* Metallic cards with a glass reflection */
+.architecture-section .phase-core { position: relative; overflow: hidden; min-height: 0; padding: 16px; border-color: #55626f; background: linear-gradient(145deg, #3a444e 0%, #1e262e 14%, #12181e 60%, #161d24 100%); box-shadow: inset 0 1px #e6ebf024, 0 10px 28px #0006; transition: transform .2s, border-color .2s, box-shadow .2s; }
+.architecture-section .phase-core::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, #ffffff12 0%, #ffffff05 28%, transparent 40%); pointer-events: none; }
+.architecture-section .phase-group.is-hover .phase-core, .architecture-section .phase-core:focus-visible { border-color: #c4ced8; box-shadow: inset 0 1px #fff3, 0 0 0 1px #76b90055, 0 12px 30px #0007; transform: translateY(-3px); }
+.architecture-section .phase-group.is-selected .phase-core { border-color: #9fb0bf; }
+.architecture-section .phase-core:focus-visible { outline: 2px solid #5aa9ff; outline-offset: 3px; }
+.architecture-section .phase-index { color: #8796a4; align-items: flex-start; }
+.architecture-section .phase-index svg { color: #76b900; }
+.architecture-section .phase-title { font-size: 24px; margin-top: 10px; }
+.architecture-section .phase-caption { min-height: 0; font-size: 12px; margin-top: 6px; }
+.mini-frame { position: relative; margin-top: 16px; }
+.mini-frame::before { content: attr(data-tag); position: absolute; top: -8px; right: 8px; z-index: 1; padding: 0 5px; background: #12181e; color: #7f8f9d; font: 7px var(--mono); letter-spacing: .12em; }
+.architecture-section .mini-frame > div { margin-top: 0; height: 96px; }
+.mini-example { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: #0b1117; border: 1px solid #2f3a44; border-radius: 4px; font-family: var(--mono); text-align: center; }
+.mini-example svg { color: #76b900; }
+.mini-example strong { font-size: 12px; font-weight: 500; color: #e6ebf0; }
+.architecture-section .mini-sensor small { font-size: 8px; letter-spacing: .04em; }
+
+/* Tool badges and stems */
+.architecture-section .tool-node { background: #10161c; border-color: #3c4852; }
+.architecture-section .phase-group.is-hover .tool-node { color: #fff; border-color: #6f8da8; background: #1b2631; }
+.architecture-section .tool-node svg { color: #5aa9ff; }
+.architecture-section .tool-stem { border-left-color: #71808e; }
+
+/* Notification connector label */
+.architecture-section .response-branch { position: static; height: 89px; }
+.architecture-section .response-branch > span.bp-chip { display: inline-flex; align-items: center; gap: 12px; padding: 6px 14px; font: 10px var(--mono); color: #c9d6e2; background: #0b1117; border: 1px solid #2c4357; border-radius: 4px; white-space: nowrap; }
+.architecture-section .bp-chip.is-floating { position: absolute; transform: translate(-50%, -50%); z-index: 3; }
+.architecture-section .bp-chip.is-lit { border-color: #5aa9ff; color: #fff; }
+.architecture-section .bp-chip i { color: #92a4b4; font-style: normal; font-size: 9px; }
+.architecture-section .data-foundation { position: relative; z-index: 1; }
+
+/* Intro sequence */
+@keyframes bp-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes bp-draw-dotted { from { opacity: 0; } to { opacity: .85; } }
+@keyframes bp-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes bp-neq { 0% { transform: scale(1); } 40% { transform: scale(1.5) rotate(-8deg); color: #ffd28a; } 100% { transform: scale(1); } }
+@keyframes bp-mask { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+.bp-armed .rv, .bp-armed .dr { opacity: 0; }
+.bp-armed .bp-mask { stroke-dashoffset: 1; }
+.bp-playing .rv { animation: bp-in .45s ease-out var(--t, 0s) backwards; }
+.bp-playing .dr { animation: bp-draw var(--d, .5s) ease-in-out var(--t, 0s) backwards; }
+.bp-playing .bp-mask { animation: bp-mask var(--d, .7s) ease-in-out var(--t, 0s) backwards; }
+.bp-playing .bp-head.rv { animation: bp-draw-dotted .25s ease-out var(--t, 0s) backwards; }
+.bp-playing .phase-detect .mini-compare > b { display: inline-block; animation: bp-neq .8s ease-in-out calc(var(--t, 0s) + .45s) backwards; }
+/* Once animating, drawn paths must be fully visible (opacity gate only applies while armed). */
+.bp-playing .rv, .bp-playing .dr { opacity: 1; }
+/* A drawn line (dash 1) with offset 0 is solid; notification keeps its own dotted dash */
+
+/* Tablet and laptop: horizontal scroll stays readable */
+@media (max-width: 1180px) { .architecture-section .architecture-canvas { min-width: 1300px; } }
+
+/* Mobile: vertical workflow, connectors drawn from measured geometry */
+@media (max-width: 600px) {
+  .architecture-section .architecture-canvas { min-width: 0; padding: 0 0 0 16px; }
+  .architecture-section .architecture-phases { gap: 32px; }
+  .architecture-section .response-branch { height: auto; padding: 24px 0; }
+  .architecture-section .response-branch > span.bp-chip { display: flex; flex-wrap: wrap; white-space: normal; gap: 6px 12px; font-size: 11px; padding: 14px; border-left: 2px solid #5aa9ff; }
+  .architecture-section .phase-core { padding: 18px; }
+  .architecture-section .phase-title { font-size: 25px; }
+  .architecture-section .phase-caption { font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv, .dr, .bp-mask, .bp-playing .rv, .bp-playing .dr, .bp-playing .bp-mask { animation: none !important; opacity: 1 !important; }
+  .bp-mask { stroke-dashoffset: 0 !important; }
+  .architecture-section .phase-core { transition: none; }
+}

@@ -44,7 +44,7 @@ function OperationalApp({ route }) {
         {['investigate', 'engineering'].includes(route.name) ? (
           <IncidentInvestigation key={contextRoute.incidentId ?? 'none'} workspace={route.name} incidentId={contextRoute.incidentId} incidents={incidents} telemetry={displayedTelemetry} history={history} now={now} backend={backend.data} />
         ) : (
-          <MissionControl telemetry={displayedTelemetry} incidents={incidents} history={history} now={now} backend={backend.data} persistedEvents={lifecycle.events} />
+          <MissionControl telemetry={displayedTelemetry} incidents={incidents} history={history} now={now} backend={backend.data} persistedEvents={lifecycle.events} oversight={route.name === 'operations'} />
         )}
       </Shell>
   );

@@ -4,12 +4,18 @@ import { classifyStatus } from '../lib/health.js';
 import { formatTime } from '../lib/format.js';
 import { workspaceHref } from '../router.js';
 import { Badge, SkeletonRows, StateMessage } from './ui.jsx';
+import '../oversight-ux.css';
 
 const SEVERITY_TONE = { HIGH: 'fault', REVIEW: 'review' };
 const STAGE_TONE = { pending: 'muted', done: 'ok', failed: 'fault', active: 'info', unknown: 'review' };
 
 export function sortIncidents(incidents) {
   return [...incidents].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+}
+
+// One quiet line per incident instead of three badges; the severity badge stays the only loud element.
+function StageStatus({ label, value, tone }) {
+  return <span className={`stage stage-${tone}`}><i aria-hidden="true" />{label} <b>{value ?? '—'}</b></span>;
 }
 
 const keyOf = i => i.incident_id;
@@ -80,13 +86,11 @@ export default function IncidentList({ state, selectedId, linkLabel = 'Investiga
                   <p className="muted">
                     {incident.device_id} · {incident.status} · opened {formatTime(incident.created_at)}
                   </p>
-                  <div className="chips">
-                    <Badge tone={STAGE_TONE[classifyStatus(nemotron)]}>Nemotron: {nemotron ?? '—'}</Badge>
-                    <Badge tone={STAGE_TONE[classifyStatus(gemini)]}>Gemini: {gemini ?? '—'}</Badge>
-                    <Badge tone={incident.integrations?.jira_key ? 'ok' : 'muted'}>
-                      Jira: {incident.integrations?.jira_key ?? 'not connected'}
-                    </Badge>
-                  </div>
+                  <p className="stage-line" aria-label="Investigation and integration status">
+                    <StageStatus label="Nemotron" value={nemotron?.toLowerCase()} tone={STAGE_TONE[classifyStatus(nemotron)]} />
+                    <StageStatus label="Gemini" value={gemini?.toLowerCase()} tone={STAGE_TONE[classifyStatus(gemini)]} />
+                    <StageStatus label="Jira" value={incident.integrations?.jira_key ?? 'not connected'} tone={incident.integrations?.jira_key ? 'ok' : 'muted'} />
+                  </p>
                   {!selected && <span className="incident-cta">{linkLabel} →</span>}
                 </a>
               </motion.li>

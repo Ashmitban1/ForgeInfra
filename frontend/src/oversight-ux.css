@@ -1,0 +1,57 @@
+/* Readability, incident-row affordance and Oversight layout.
+   Selectors are prefixed with .shell so they win over styles.css regardless of import order,
+   and page colors still come from workspace-themes.css. */
+
+/* Readability floor: 12px labels, 13px secondary text */
+.shell .eyebrow, .shell .kpi-hint, .shell .fact dt, .shell .metric-label, .shell .unit-label { font-size: 12px; }
+.shell .note, .shell .conn-meta, .shell .footer, .shell .path-text small { font-size: 13px; }
+.shell .compare-col { font-size: 14px; }
+
+/* Mismatch evidence: columns stay wide enough that labels never break mid-word */
+.shell .compare { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.shell .compare-col h3 { overflow-wrap: normal; word-break: normal; font-size: 12px; }
+
+/* Incident rows: the whole card is the link; make that obvious */
+.shell .incident { padding-right: 46px; cursor: pointer; transition: background .15s, border-color .15s; }
+.shell .incident::after { content: '›'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 28px; line-height: 1; color: var(--muted); transition: transform .15s, color .15s; }
+.shell .incident:hover, .shell .incident:focus-visible { background: var(--raised); border-color: var(--cyan); }
+.shell .incident:hover::after, .shell .incident:focus-visible::after { color: var(--cyan); transform: translate(3px, -50%); }
+.shell .incident:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.shell .incident.is-selected::after { display: none; }
+.shell .incident p { font-size: 13px; }
+.shell .incident-cta { font-size: 13px; }
+
+/* One quiet status line instead of three badges */
+.shell .stage-line { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; font-size: 13px; color: var(--muted); }
+.shell .stage { display: inline-flex; align-items: center; gap: 6px; }
+.shell .stage i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.shell .stage b { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.shell .stage-ok i { background: var(--green); }
+.shell .stage-fault i { background: var(--red); }
+.shell .stage-info i { background: var(--cyan); }
+.shell .stage-review i { background: var(--amber); }
+
+/* Oversight: response first (incidents), then a single status strip, then the shared evidence */
+.shell[data-workspace='operations'] .page-oversight { display: flex; flex-direction: column; gap: 18px; padding-top: 18px; }
+.shell[data-workspace='operations'] .page-oversight > * { margin-block: 0; }
+.shell[data-workspace='operations'] .page-oversight .incident-list { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.shell[data-workspace='operations'] .page-oversight .incident { height: 100%; }
+.shell[data-workspace='operations'] .page-oversight .incident-cta { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* chevron + whole-row link replace it; stays for screen readers */
+.shell[data-workspace='operations'] .page-oversight .kpis { gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.shell[data-workspace='operations'] .page-oversight .kpi { border-radius: 0; border-top: 0; border-right: 0; border-bottom: 0; background: var(--panel-solid); }
+.shell[data-workspace='operations'] .page-oversight .grid-main { grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); }
+
+/* Mobile */
+@media (max-width: 760px) {
+  .shell .topbar nav { display: grid; grid-template-columns: 1fr 1fr; width: 100%; gap: 6px; }
+  .shell .topbar nav a { text-align: center; white-space: nowrap; padding: 10px 8px; }
+  .shell .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .shell .kpi { padding: 12px 14px; }
+  .shell .kpi-value { font-size: 26px; }
+  .shell[data-workspace='operations'] .page-oversight .kpis { gap: 1px; }
+  .shell[data-workspace='operations'] .page-oversight .incident-list { grid-template-columns: minmax(0, 1fr); }
+  .shell[data-workspace='operations'] .page-oversight .grid-main { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell .incident, .shell .incident::after { transition: none; }
+}

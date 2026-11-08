@@ -49,7 +49,7 @@ function TelemetryGate({ state, children }) {
   );
 }
 
-export default function MissionControl({ telemetry, incidents, history, now, backend, persistedEvents = [] }) {
+export default function MissionControl({ telemetry, incidents, history, now, backend, persistedEvents = [], oversight = false }) {
   const [selectedId, setSelectedId] = useState(null);
   const devices = useMemo(() => telemetry.data ?? [], [telemetry.data]);
 
@@ -72,15 +72,22 @@ export default function MissionControl({ telemetry, incidents, history, now, bac
   const noValue = telemetry.error ? '—' : '…';
   const timelineUnavailable = !telemetry.data && !incidents.data && !(telemetry.loading || incidents.loading);
 
+  const incidentPanel = (
+    <Panel title="Live incidents" eyebrow="Polling every 3s" headingId="inc-h">
+      <IncidentList state={incidents} />
+    </Panel>
+  );
+
   return (
-    <div className="page">
-      <div className="page-title">
+    <div className={`page ${oversight ? 'page-oversight' : ''}`}>
+      {oversight && incidentPanel}
+      {!oversight && <div className="page-title">
         <span className="eyebrow">Mission Control</span>
         <h1>Data-center reliability</h1>
         <p className="muted">
           Compares hardware telemetry against the legacy monitor. Operational values come from the API; Demo mode uses explicitly labeled fixtures.
         </p>
-      </div>
+      </div>}
 
       <div className="kpis" aria-label="Summary">
         <Kpi label="Known racks" value={ready ? devices.length : noValue} hint={ready ? devices.filter(device => !healthById[device.device_id]?.stale).length + ' with fresh observations' : ''} />
@@ -157,9 +164,7 @@ export default function MissionControl({ telemetry, incidents, history, now, bac
         </div>
 
         <div className="col">
-          <Panel title="Live incidents" eyebrow="Polling every 3s" headingId="inc-h">
-            <IncidentList state={incidents} />
-          </Panel>
+          {!oversight && incidentPanel}
           <Panel title="Event timeline" eyebrow="Newest first" headingId="events-h">
             {timelineUnavailable ? (
               <StateMessage kind="error" title="Timeline unavailable">

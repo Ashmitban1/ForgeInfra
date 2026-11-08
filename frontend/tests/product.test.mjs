@@ -27,19 +27,21 @@ test('finished test tools and nominal telemetry cannot establish repair verifica
   const result = repairVerification(incident, { stale: false, level: 'nominal' });
   assert.equal(result.state, 'unverified');
   assert.equal(result.liveNominal, true);
-  assert.match(result.detail, /completion alone/);
+  assert.equal(result.tests.length, 0, 'Tool completion supplies no candidate acceptance results');
 });
 
-test('execution failures and active jobs are distinct from absent verification evidence', () => {
+test('verification uses candidate evidence and investigation state, not tool-call labels', () => {
   assert.equal(repairVerification({}, null).state, 'unverified');
-  assert.equal(repairVerification({ investigation: { tool_calls: [{ name: 'test_candidate', status: 'FAILED' }] } }, null).state, 'failed');
-  assert.equal(repairVerification({ investigation: { tool_calls: [{ name: 'test_candidate', status: 'RUNNING' }] } }, null).state, 'running');
+  assert.equal(repairVerification({ investigation: { tool_calls: [{ name: 'test_candidate', status: 'FAILED' }] } }, null).state, 'unverified');
+  assert.equal(repairVerification({ investigation: { status: 'RUNNING' } }, null).state, 'running');
+  const incomplete = { verification_status: 'FAILED', tests: { candidate: { failed: 1 } } };
+  assert.equal(repairVerification({}, null, incomplete).state, 'failed');
 });
 
-test('architecture keeps intended model integration and current storage limits explicit', () => {
+test('architecture reflects connected APIs without claiming production code or deployment', () => {
   assert.equal(phases.length, 5);
-  assert.equal(phases[2].status, 'Awaiting integration');
-  assert.match(phases[1].note, /in memory/);
+  assert.equal(phases[2].status, 'Connected through backend APIs');
+  assert.match(phases[1].note, /not Northmark/);
   assert.match(phases[3].note, /manually authored/);
   assert.match(phases[4].note, /without waiting/);
 });
