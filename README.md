@@ -74,3 +74,90 @@ Replace `COM3` with your actual port. `cooling_fault` is a **switch-simulated** 
 See `docs/GITHUB_PUSH.md` for push commands and `docs/TEAM_TASKS.md` for assignments. See `docs/API_CONTRACT.md` before adding new API endpoints.
 
 The backend currently has **no authentication** and uses **in-memory** storage. Keep it local/isolated until protected. `.env` and credentials are ignored by Git.
+
+
+### Arduino LED Status Indicators
+
+FactoryOS uses two physical LEDs to display the current
+cooling-fault state.
+
+- 🟢 Green LED: Normal operation (`cooling_fault: false`)
+- 🔴 Red LED: Simulated cooling fault (`cooling_fault: true`)
+
+#### Components
+
+- ELEGOO UNO R3
+- DHT11 temperature/humidity sensor
+- 1 green LED
+- 1 red LED
+- 2 current-limiting resistors (220Ω–1kΩ)
+- Breadboard and jumper wires
+
+#### Wiring
+
+| Component | Arduino Pin | Breadboard |
+|---|---|---|
+| DHT11 signal | D2 | Existing connection |
+| Cooling-fault input | D3 | Connect to GND to simulate fault |
+| Green LED (+) | D8 | Through resistor to G14 |
+| Green LED (-) | GND | G15/H15 to negative rail |
+| Red LED (+) | D9 | Through resistor to B20 |
+| Red LED (-) | GND | B21/D21 to negative rail |
+
+Both LEDs share the breadboard's negative (-) rail,
+which connects to Arduino GND.
+
+Each LED must have its own current-limiting resistor.
+
+#### LED Behavior
+
+| Cooling Fault | Green LED | Red LED |
+|---|---|---|
+| false | ON | OFF |
+| true | OFF | ON |
+
+#### Testing
+
+1. Upload `hardware/arduino/factoryos_arduino/factoryos_arduino.ino`.
+2. Leave D3 disconnected from GND. Green LED should light up.
+3. Connect D3 to GND. Red LED should light up.
+4. Disconnect D3 from GND. Green LED should light up again.
+5. Close Arduino Serial Monitor.
+6. Run the Python serial gateway:
+
+```powershell
+.\.venv\Scripts\python.exe hardware/serial_gateway.py --port COM3
+```
+
+Replace COM3 with the Arduino's actual serial port.
+
+The LEDs are controlled locally by the Arduino.
+No changes to the FastAPI backend, MongoDB Atlas, or
+Tiger Data are required.
+
+The serial JSON format remains unchanged:
+
+```json
+{
+  "temperature_c": 23.8,
+  "humidity_pct": 45.0,
+  "cooling_fault": false
+}
+```
+
+Temperature and humidity are real DHT11 measurements.
+The cooling-fault input is a simulated equipment-failure
+signal, not a measurement from an actual cooling system.
+
+#### Demo
+
+During the FactoryOS demonstration:
+
+1. Show normal operation with the green LED.
+2. Activate the D3-to-GND fault.
+3. Show the red LED turning on.
+4. Demonstrate FastAPI incident detection.
+5. Show the incident in MongoDB Atlas.
+6. Show the fault history in Tiger Data.
+7. Restore normal operation and show the green LED again.
+
