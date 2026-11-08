@@ -1,3 +1,4 @@
+import JiraAction from '../components/investigation/JiraAction.jsx';
 import { useEffect, useMemo } from 'react';
 import { getIncident } from '../api.js';
 import IncidentList, { sortIncidents } from '../components/IncidentList.jsx';
@@ -81,6 +82,7 @@ function IncidentDetail({ incidentId, telemetry, history, now }) {
             <ApprovalActions />
           </Panel>
           <Panel title="Jira / Slack results" eyebrow="Integrations" headingId="integ-h">
+            <JiraAction incident={incident} onCreated={refresh} />
             <IntegrationResults integrations={incident.integrations} />
           </Panel>
           <Panel title="Code diff" eyebrow="Proposed repair" sample headingId="diff-h">

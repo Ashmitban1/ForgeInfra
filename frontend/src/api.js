@@ -11,10 +11,10 @@ export class ApiError extends Error {
   }
 }
 
-async function getJson(path, signal) {
+async function getJson(path, signal, method = 'GET') {
   let response;
   try {
-    response = await fetch(`${API_BASE}${path}`, { signal, headers: { Accept: 'application/json' } });
+    response = await fetch(`${API_BASE}${path}`, { signal, method, headers: { Accept: 'application/json' } });
   } catch (error) {
     if (error?.name === 'AbortError') throw error;
     throw new ApiError(`Cannot reach the FactoryOS API at ${API_BASE}. Is the backend running?`, { kind: 'network' });
@@ -57,6 +57,15 @@ export async function getIncident(incidentId, signal) {
   const body = await getJson(`/api/incidents/${encodeURIComponent(incidentId)}`, signal);
   if (!body || typeof body !== 'object' || body.incident_id !== incidentId) {
     throw new ApiError('API returned an incident that does not match the requested ID.', { kind: 'shape' });
+  }
+  return body;
+}
+
+export async function createJiraIssue(incidentId) {
+  if (isDemoMode()) throw new ApiError('Demo incidents cannot be sent to Jira.', { kind: 'demo' });
+  const body = await getJson(`/api/incidents/${encodeURIComponent(incidentId)}/notify`, undefined, 'POST');
+  if (!body?.jira_key || !body?.jira_url || body.incident_id !== incidentId) {
+    throw new ApiError('Backend did not confirm a Jira issue. Refresh before retrying.', { kind: 'shape' });
   }
   return body;
 }

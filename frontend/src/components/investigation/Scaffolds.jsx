@@ -66,7 +66,6 @@ export function ApprovalActions() {
       <div className="actions">
         <button type="button" className="btn btn-primary" disabled aria-describedby="approval-note">Approve repair</button>
         <button type="button" className="btn" disabled aria-describedby="approval-note">Reject</button>
-        <button type="button" className="btn" disabled aria-describedby="approval-note">Notify Jira / Slack</button>
       </div>
     </>
   );
