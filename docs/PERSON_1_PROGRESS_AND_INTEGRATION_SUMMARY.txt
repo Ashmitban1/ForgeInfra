@@ -1,0 +1,355 @@
+FACTORYOS - PERSON 1 PROGRESS AND INTEGRATION SUMMARY
+Prepared: November 7, 2026 (America/Chicago)
+Audience: Persons 2 and 3 and their coding agents
+Owner described here: PERSON 1 - hardware, telemetry, reliability, shared backend
+
+1. PURPOSE AND EVIDENCE
+======================================================================
+This combines the Person 1 Codex conversation, the supplied Arduino-session
+handoff, and inspection of the current local repository. It describes Person 1,
+not Person 2. It does not audit teammates' separate branches or running systems.
+
+Evidence labels used below:
+- CODE: verified by reading this checkout.
+- SESSION: user pasted command output into this Codex conversation.
+- HARDWARE REPORT: reported in the attached Arduino-session handoff; original
+  photos and hardware were not independently inspected in this session.
+- PENDING: not demonstrated or not implemented in this checkout.
+
+No application code was changed during preparation of this summary. Existing
+starter implementation, successful execution, and newly completed features must
+not be confused. Tests were not rerun for this documentation-only task.
+
+2. CURRENT CHECKOUT AND WORK ALREADY DONE
+======================================================================
+Workspace: C:\Users\tipub\OneDrive\Documents\HACKUTD 2026
+Current branch: feat/person-1
+Inspected HEAD: c9586c8 (Initialize FactoryOS project)
+Local feat/person-1 tracks origin/feat/person-1 at that same inspected commit.
+The local main branch is at the same commit; its cached origin/main reference
+is one commit ahead. No fetch or comparison of that newer commit was performed.
+Therefore do not assume teammates' latest work is represented in this checkout.
+
+Completed in this session:
+- Created and switched to feat/person-1; user subsequently published it.
+- Helped resolve Python environment setup and Git ownership/trust errors.
+- User installed requirements into .venv and ran FastAPI locally.
+- SESSION: GET /health returned HTTP 200.
+- SESSION: pytest completed with 4 passed and one deprecation warning.
+- SESSION: simulated fault returned HTTP 200, should_alert=true,
+  incident_id=INC-COOLING-001, mismatch=true, legacy_missed_fault.
+- SESSION: GET /api/incidents/INC-COOLING-001 returned HTTP 200.
+- SESSION: healthy simulation returned should_alert=false, incident_id=null,
+  mismatch=false, reasons=[], evidence_quality=CURRENT.
+- Explained the pipeline and shared interface/ownership with the user.
+
+Before this summary, git status showed only an untracked AGENTS.md; no tracked
+application changes were listed. The branch is currently a verified starter,
+not a separately implemented new backend feature set.
+
+3. TEAM RESPONSIBILITIES
+======================================================================
+Person 1 owns:
+  backend/main.py, backend/reliability.py, backend/schemas/, backend/storage/,
+  hardware/, telemetry ingestion, deterministic checks, backend route assembly.
+Person 2 owns:
+  backend/agents/, backend/modernization/, actual Nemotron tool investigation,
+  Gemini structured recommendation, runnable legacy fixture, repair/test proof.
+Person 3 owns:
+  frontend/, backend/integrations/, dashboard, Jira/Slack, approval UI,
+  optional Solana after the core flow works.
+
+Coordinate main.py and shared schema changes with Person 1. Preserve incident
+identifiers and v1 field names. Read docs/API_CONTRACT.md and docs/TEAM_TASKS.md.
+The master plan expects Gemini review; it is not implemented in this checkout.
+
+4. HARDWARE PROGRESS AND REMAINING PHYSICAL CHECK
+======================================================================
+HARDWARE REPORT:
+- ELEGOO UNO R3, three-pin DHT11 module labeled S/+/-.
+- Adafruit DHT sensor library and Adafruit Unified Sensor installed.
+- Existing sketch uploaded and valid serial JSON observed at 9600 baud:
+  {"temperature_c":26.4,"humidity_pct":40.0,"cooling_fault":false}
+- DHT11 wiring: S -> D2, + -> 5V, - -> GND.
+- D3 is INPUT_PULLUP: open/HIGH means false; grounded/LOW means true.
+- Built-in LED follows cooling_fault.
+- Sensor values are physical readings; cooling_fault is deliberately simulated.
+- Real serial gateway traffic reached FastAPI repeatedly with HTTP 200.
+- Normal evaluations showed mismatch=false, reasons=[], CURRENT.
+- Fault evaluations showed mismatch=true, legacy_missed_fault, PARTIAL.
+- One incomplete startup serial line was skipped; later lines succeeded.
+
+Troubleshooting outcome:
+- Original tilt-switch setup stayed true regardless of orientation.
+- Disconnecting D3 produced false; reconnecting the setup produced true.
+- Exact cause was not established; do not claim the tilt switch is fixed.
+- Chosen replacement demo input: removable D3-to-GND breadboard jumper.
+- A complete jumper false -> true -> false cycle is still unconfirmed.
+- Correct UNO pin endpoints and the shared five-hole breadboard group still
+  need physical confirmation. Never connect 5V directly to GND.
+- Disconnect USB when rearranging fixed wiring; use printed pin/rail labels.
+
+Next physical acceptance check:
+1. Verify D3 open produces false, bridge D3 to GND produces true, remove bridge
+   and confirm false again in Serial Monitor.
+2. Close Serial Monitor, run gateway, repeat while reading latest telemetry.
+3. Confirm a physical-source fault incident exists through the incident API.
+4. Expect existing incidents to remain OPEN on recovery with current code.
+
+5. ACTUAL PIPELINE AND FILES
+======================================================================
+DHT11 + simulated fault input
+  -> hardware/arduino/factoryos_arduino/factoryos_arduino.ino
+  -> newline-delimited USB serial JSON, 9600 baud, about every two seconds
+  -> hardware/serial_gateway.py
+  -> POST /api/telemetry
+  -> backend/schemas/incident.py validation
+  -> backend/reliability.py deterministic evaluation
+  -> backend/main.py latest state and incident dictionaries
+  -> GET APIs consumed by dashboard and investigation tools.
+
+The sketch skips output on invalid DHT readings. The gateway adds schema,
+device, source, timestamps, sequence, and fault_is_simulated=true. Device ID is
+currently hardcoded RACK-01. Sequence starts from laptop epoch milliseconds
+and increments. observed_at is assigned by the laptop when it processes the
+serial line, not measured by an Arduino synchronized clock. FastAPI assigns
+its own received_at and does not trust the incoming receipt time for output.
+
+Gateway catches malformed JSON/missing-key cases and HTTP request failures.
+It waits for the next reading after a POST failure; it does not durably queue
+or retry the failed event. Serial-disconnect reconnection is not implemented.
+bool(reading['cooling_fault']) assumes proper firmware booleans; arbitrary
+string booleans are not safely normalized. General malformed-type handling
+and strict gateway validation remain improvement work.
+
+Simulator bypasses Arduino and gateway, posting the same v1 event shape with
+source_kind=simulator. Do not present simulator readings as physical readings.
+
+6. EXACT TELEMETRY INPUT CONTRACT (CODE)
+======================================================================
+POST /api/telemetry
+Example only; use fresh timestamps and increasing sequences when replaying:
+{
+  "schema_version": "1.0",
+  "device_id": "RACK-01",
+  "source_kind": "arduino_serial",
+  "observed_at": "2026-11-07T22:20:48Z",
+  "sequence": 1794090048708,
+  "temperature_c": 29.4,
+  "humidity_pct": 54.0,
+  "cooling_fault": true,
+  "fault_is_simulated": true
+}
+
+TelemetryEvent rules:
+- schema_version: literal "1.0", defaults to "1.0".
+- device_id: string length 1 through 60.
+- source_kind: only "simulator" or "arduino_serial".
+- observed_at: datetime; endpoint requires timezone information.
+- received_at: optional datetime, not authoritative server receipt time.
+- sequence: integer >= 0, required.
+- temperature_c: number from -40 through 85, required.
+- humidity_pct: number from 0 through 100, required.
+- cooling_fault: boolean field, required; Pydantic defaults allow coercion.
+- fault_is_simulated: boolean, defaults true.
+- Extra input fields are forbidden.
+
+Invalid payload/timezone: HTTP 422. Duplicate/out-of-order sequence: HTTP 409.
+Sequence ordering is per (device_id, source_kind), not a global counter.
+Do not add CPU/memory or other source kinds without a coordinated schema plan.
+
+7. EXACT READ AND POST RESPONSE SHAPES (CODE)
+======================================================================
+Implemented endpoints:
+GET /health -> {"status":"ok","service":"factoryos-person1"}
+POST /api/telemetry -> receipt/alert fields plus telemetry result below.
+GET /api/telemetry/latest -> {"devices":[telemetry result, ...]}
+GET /api/incidents -> {"incidents":[incident object, ...]}
+GET /api/incidents/{incident_id} -> incident object, or HTTP 404.
+
+Telemetry result keys:
+  schema_version, device_id,
+  hardware: temperature_c, humidity_pct, cooling_fault, fault_is_simulated,
+            source_kind, observed_at, received_at, sequence,
+  legacy_monitor: status, source_revision, sampled_at,
+  expected_status,
+  reliability: mismatch, reasons, evidence_quality, observation_age_seconds.
+
+POST additionally returns received=true, incident_id (string or null), and
+should_alert (boolean). Latest telemetry does NOT include these three fields.
+GET incident does NOT currently include should_alert or received either.
+
+Incident object adds:
+  incident_id: "INC-COOLING-001" style ID generated by the server,
+  created_at, updated_at, status: "OPEN", severity: "HIGH" or "REVIEW",
+  investigation: {
+    "status":"PENDING", "agent":"nvidia-nemotron", "tool_calls":[],
+    "findings":[], "evidence_ids":[]
+  },
+  decision_review: {
+    "status":"PENDING", "reviewer":"gemini", "recommendation":null
+  },
+  integrations: {
+    "jira_key":null, "jira_url":null, "slack_message_id":null,
+    "github_pr_url":null, "solana_tx_signature":null
+  }.
+
+Use temperature_c/humidity_pct/observed_at, not the Arduino handoff's old
+illustrative temperature/humidity/timestamp names. Use uppercase PENDING,
+NORMAL, WARNING, OPEN. The old sample ID DC-007 is not the implemented format.
+Copy actual IDs returned by the server rather than inventing them.
+
+8. RELIABILITY, ALERTS, AND INCIDENT LIFECYCLE (CODE)
+======================================================================
+Current legacy_monitor_stub: WARNING only when temperature_c > 35.
+Independent rule: WARNING when cooling_fault=true OR temperature_c > 35.
+35 is a demo threshold, not a validated universal data-center safety limit.
+Legacy source_revision is "demo-legacy-placeholder-v1"; this is not actual
+Northmark code and does not prove a completed modernization workflow.
+
+Reasons:
+- stale_hardware_reading when age > 90 seconds.
+- future_observation_timestamp when age < -10 seconds.
+- legacy_missed_fault when legacy and independent status differ.
+
+PARTIAL explanation resolved from code:
+  evidence_quality = "PARTIAL" if ANY reason exists, otherwise "CURRENT".
+Thus a fresh, correctly read simulated fault can be PARTIAL purely because of
+legacy_missed_fault. This does not establish a DHT sensor failure. The current
+label combines discrepancy and freshness; discuss semantics before changing it.
+
+should_alert=true when input is fresh and independent status is WARNING.
+Models are not involved. This flag alone does not notify Jira or Slack.
+Any nonempty reason list creates/reuses an OPEN incident for that device.
+Repeated problematic readings update the same open incident's telemetry.
+Initial severity is HIGH for a fresh mismatch, otherwise REVIEW; it is not
+recomputed on later updates to that incident.
+
+Important current limitations:
+- Healthy readings update latest telemetry but do not close/update the old
+  incident; healthy POST returns incident_id=null even if an old incident exists.
+- Temperature >35 with no mismatch/freshness issue alerts but creates no incident
+  because reasons=[]; consumers must not assume every alert has an incident ID.
+- No missing-heartbeat alert: freshness is evaluated only on submitted events.
+- Latest state is keyed only by device ID; simulator and Arduino RACK-01 readings
+  overwrite the same latest entry and may update the same incident.
+- No history/time-window endpoint, durable event log, or immutable evidence
+  snapshot exists. Incident telemetry can change while an agent investigates.
+- All state, sequences, and IDs reset on backend restart; use one backend
+  process for the current demo. Separate laptops have separate incident stores.
+
+9. TESTS AND DEMONSTRATED RESULTS
+======================================================================
+tests/test_api.py currently contains four tests:
+1. Healthy input: no mismatch and no alert.
+2. Fault: alert and mismatch, retrievable incident, null Jira ID.
+3. Duplicate sequence: HTTP 409.
+4. Stale fault: flagged stale and no fresh operational alert.
+
+SESSION command: .\.venv\Scripts\python.exe -m pytest -q
+SESSION result: 4 passed, 1 warning (latest pasted run: 0.57 seconds).
+Warning concerns Starlette TestClient/httpx deprecation; no dependency fix was
+made. CI targets Python 3.11; initial launcher inspection listed local Python
+3.13. Exact runtime of the user's successful test invocation was not recorded.
+
+Not yet covered by these four tests: recovery lifecycle, future timestamps,
+invalid/missing fields, out-of-order lower sequences, repeated-incident reuse,
+serial partial lines/disconnects, storage durability, teammate integrations.
+
+10. LOCAL RUN / REPRODUCTION
+======================================================================
+From repository root, install dependencies if not already installed:
+  py -3 -m venv .venv
+  .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+Terminal A - backend:
+  .\.venv\Scripts\python.exe -m uvicorn backend.main:app --reload
+
+Terminal B - choose simulator OR physical gateway for a clear source demo:
+  .\.venv\Scripts\python.exe hardware/simulator.py --mode normal
+  .\.venv\Scripts\python.exe hardware/simulator.py --mode fault
+OR, after closing Arduino Serial Monitor:
+  .\.venv\Scripts\python.exe -m serial.tools.list_ports
+  .\.venv\Scripts\python.exe hardware/serial_gateway.py --port COM3
+Replace COM3 with the actual port. Serial Monitor is 9600 baud.
+
+Inspect http://127.0.0.1:8000/docs and the read endpoints listed above.
+Frontend: cd frontend, npm install, npm run dev (Node 20+ per repository).
+CORS currently permits localhost:5173 and 127.0.0.1:5173, GET/POST only.
+127.0.0.1 means the current laptop. This is not a shared network deployment.
+
+11. WHAT PERSON 2 SHOULD COMPARE WITH THEIR AGENT
+======================================================================
+- Are tools consuming actual server IDs and the exact nested field names above?
+- Are agent routes registered with Person 1 rather than implemented in an
+  isolated app with an independent incident dictionary?
+- Agree on a shared incident repository/service for attaching investigation,
+  decision, and evidence results. Current API only exposes read access for these;
+  there is no implemented write/update service for teammate results yet.
+- Proposed investigate/analysis/repair routes in docs/API_CONTRACT.md are NOT
+  currently registered. Router names and request/response models need agreement.
+- Replace legacy_monitor_stub with Person 2's runnable fixture through an agreed
+  adapter, and set source_revision to the real tested revision.
+- Preserve independent alerting after the legacy monitor is repaired; replay
+  should show WARNING vs WARNING and mismatch=false while fault alert stays true.
+- Do not infer incident closure from a cleared mismatch; closure is unimplemented.
+- Define stable evidence snapshots/revisions so tool findings refer to the
+  readings actually investigated, not an incident's subsequently updated values.
+- Keep genuine tool traces, failing-before/passing-after tests and baseline
+  results. A pending field is not evidence that a provider call occurred.
+
+12. WHAT PERSON 3 SHOULD COMPARE WITH THEIR AGENT
+======================================================================
+- Parse devices/incidents collection wrappers correctly; detail is unwrapped.
+- Display hardware.source_kind and fault_is_simulated explicitly.
+- Preserve timestamps, units, reliability reasons, and uppercase status values.
+- Display the live latest reading separately from an older still-open incident.
+- Do not interpret PARTIAL as proof of sensor failure or CURRENT as proof that
+  no fault exists. Do not expect should_alert in GET responses currently.
+- Jira/Slack notification routes and approval routes are proposed, not registered.
+  Coordinate their server wiring and persistence with Person 1.
+- Keep external IDs null/PENDING until an actual provider response exists.
+- Use idempotency per incident/action to prevent repeated readings or polling
+  from creating duplicate Jira tickets/Slack messages.
+- Agree with Person 2 on trace/recommendation/repair evidence response formats
+  before building UI against invented fields.
+- If hosting frontend elsewhere, coordinate backend URL, CORS, authentication,
+  and network access; current localhost settings do not provide remote access.
+
+13. ALIGNMENT ASSESSMENT AND NEXT SHARED CHECKPOINT
+======================================================================
+The Person 1 implementation and reported hardware work follow the intended
+architecture: physical readings -> gateway -> deterministic backend -> shared
+incident data. Full cross-team compatibility cannot be established until the
+Person 2 and Person 3 summaries/branches are compared.
+
+Highest-priority integration gaps:
+1. Confirm physical normal -> fault -> normal cycle and retrieve its incident.
+2. Compare all three branches/contracts and register teammate routers together.
+3. Agree on one shared incident/evidence update service, IDs and snapshot rules.
+4. Connect Person 2's actual legacy fixture and real investigation/review calls.
+5. Render that same incident and real Jira/Slack results in Person 3's dashboard.
+6. Decide lifecycle behavior (recovery/closure, severity refresh, alert-only cases).
+7. Expand focused regression tests, then implement persistence if time permits.
+
+Shared demonstration acceptance:
+One running backend receives an Arduino event, returns an incident, Person 2
+investigates that exact incident/evidence, Person 3 displays it and shows actual
+notification results, and a tested approved repair can be replayed honestly.
+
+14. NOT COMPLETED / NOT VERIFIED HERE
+======================================================================
+No current-checkout implementation or verification of real Nemotron/Gemini,
+runnable legacy repair, Jira/Slack, approval authorization, Solana, local durable
+storage, Tiger Data, MongoDB, independent CPU/memory monitoring source, cloud
+deployment, or combined end-to-end team flow. Other teammates may have separate
+work; obtain their summaries before judging those features absent globally.
+
+README still says physical Arduino connection is unverified; the supplied
+hardware report provides newer user-reported evidence of successful ingestion.
+That report does not establish every outstanding physical-demo step is done.
+
+Keep secrets out of Git and browser VITE_* variables. Current backend has no
+authentication and should remain local/isolated. Human approval is required
+before merges or deployments. No merge, deployment, commit, push, or teammate
+message was performed while creating this summary.
