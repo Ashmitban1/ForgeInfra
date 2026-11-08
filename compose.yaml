@@ -6,7 +6,7 @@ services:
       dockerfile: backend/Dockerfile
     env_file:
       - path: docker/backend.env
-      - path: .env.docker
+      - path: .env
         required: false
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
@@ -44,8 +44,6 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    env_file:
-      - docker/backend.env
     entrypoint: ["python", "hardware/simulator.py", "--url", "http://backend:8000/api/telemetry"]
     command: ["--mode", "fault"]
     depends_on:

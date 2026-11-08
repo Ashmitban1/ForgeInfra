@@ -104,7 +104,8 @@ For containerized frontend, backend, and persistent local MongoDB, see
 [the Docker guide](docs/DOCKER.md). Quick start from the repository root:
 
 ```sh
-cp .env.docker.example .env.docker
+# If you do not already have a root .env:
+cp .env.example .env
 docker compose up --build -d
 ```
 

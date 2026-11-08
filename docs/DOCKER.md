@@ -7,7 +7,8 @@ the API still needs authentication beyond reviewer routes before public exposure
 ## Start the application
 
 ```sh
-cp .env.docker.example .env.docker
+# Only if you do not already have a root .env:
+cp .env.example .env
 docker compose up --build -d
 docker compose ps
 ```
@@ -24,15 +25,22 @@ worker, as required by the current job and canonical incident design.
 
 MongoDB runs locally with a persistent named volume and no published database
 port. This starts a **new local database**, separate from existing Atlas incidents.
-Set `MONGODB_URI` and `MONGODB_DATABASE` in `.env.docker` to use Atlas instead.
+Set `MONGODB_URI` and `MONGODB_DATABASE` in the project-root `.env` to use Atlas instead.
 The unused local Mongo service will still run. Configure `TIGERDATA_DATABASE_URL`
 to retain your existing hosted Tiger Data connection; no local Tiger substitute
 is provisioned. Without it, telemetry history storage is disabled.
 
-Put provider keys, Jira/Slack configuration, and reviewer token digests in
-`.env.docker`. Existing root/backend `.env` files are excluded from images and
-are not automatically loaded into containers. Never pass secrets as frontend
-build arguments. After editing configuration, recreate the backend:
+Use the project-root `.env` as the shared configuration source: Compose reads
+port settings from it and injects its values into the backend at runtime, after
+the non-secret defaults in `docker/backend.env`. Explicit empty values override
+defaults too; an empty `MONGODB_URI` disables incident persistence. Move any
+needed configuration from `backend/.env` into the root file yourself; the nested
+file is not loaded by Compose. All `.env` files remain excluded from images.
+
+The nginx frontend, MongoDB, simulator, and candidate sandboxes do not receive
+backend provider credentials. The frontend uses its same-origin API proxy.
+Never pass secrets as frontend build arguments. After editing `.env`, recreate
+the backend (restart alone does not reload environment values):
 
 ```sh
 docker compose up -d backend
