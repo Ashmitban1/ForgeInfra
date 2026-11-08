@@ -1,8 +1,9 @@
 # Human approval API
 
-The P2 wrapper registers authenticated human decisions over one exact candidate
-and evidence package. It changes no live monitor, operational incident status,
-deployment, PR, Jira ticket, or Slack message.
+The integrated `backend.modernization.app:app` registers authenticated human
+decisions over one exact candidate and evidence package on P1's same app. It
+changes no live monitor, operational incident status, deployment, PR, Jira ticket,
+or Slack message.
 
 ## Configure reviewer authentication
 
@@ -30,8 +31,11 @@ PY
 
 Add the printed `FACTORYOS_APPROVERS_JSON=...` line to the ignored root/backend
 `.env`, then restart `backend.modernization.app:app`. Process environment takes
-precedence over dotenv. Restart clears local memory-backed incidents/jobs; use
-the Mongo adapter with P1's writer for durable shared operation.
+precedence over dotenv. Without MongoDB, incidents/jobs are volatile. With
+`MONGODB_URI` and optional `MONGODB_DATABASE`, P1 restores canonical records before
+fresh P2 workers start; the shared adapter reuses P1's database/client for job
+collections. Acknowledged records survive restart and unfinished jobs become
+INTERRUPTED. Do not mount a separate P2 incident writer.
 
 In Swagger `/docs`, fully reload the page, click **Authorize**, and enter the raw
 token from the private file under **FactoryOSReviewer**. Swagger adds `Bearer`.
@@ -93,14 +97,32 @@ so merely viewing evidence does not change the hash. Policy reasons and check ti
 are also recorded on each decision.
 
 The canonical incident's `approval` aggregate holds frozen packages and decision
-history. Memory commits use P1's existing lock; Mongo commits use one atomic update
-with expected evidence/history in the update filter. Conflicting concurrent writes
-cannot silently overwrite a decision. State is bounded to 16 packages per incident,
-256 KB per package. History is append-only through this API, not cryptographically
-tamper-proof against privileged database administrators.
+history. P1 performs a compare-and-set under its existing lock against the expected
+incident/approval state, then queues the canonical snapshot and lifecycle event
+through its sole MongoDB writer. Conflicting concurrent changes cannot silently
+overwrite a decision. State is bounded to 16 packages per incident, 256 KB per
+package. History is append-only through this API, not cryptographically tamper-proof
+against privileged database administrators.
+
+MongoDB authorization requires a durable readback confirming the approval version.
+If acknowledgement remains pending, POST returns **503**, retains the cached audit
+record, and prevents execution. GET/analysis expose `persistence: {status, version}`:
+PERSISTED for confirmed MongoDB state, PENDING for unconfirmed writes, and VOLATILE
+for explicit memory mode. This ephemeral metadata is outside the evidence hash.
+An unacknowledged APPROVE is STALE with `approval_persistence_pending`.
+
+After storage recovers, retry the exact request with the **same Idempotency-Key**.
+Once durable readback succeeds, it returns the original decision ID/timestamp
+with 200 instead of creating another audit entry. Pending retry queues are memory-only;
+termination before acknowledgement can lose unpersisted state.
 
 `analysis.approval.status` is PENDING, APPROVED, REJECTED, or STALE. Approval can
 become stale through changed evidence, expired telemetry, or reviewer removal.
+Exact captured `snapshot_revision` values never change. Review/approval currency
+also checks a semantic monitoring case: compatible advancing fresh samples can
+preserve eligibility. P1 increments `case_generation` on material telemetry/status
+changes, including a healthy sample clearing the fault. A later recurrence cannot
+revive an old decision, even when measurements match the original fault.
 The original model reports' `approval_status=PENDING` remain historical AI evidence;
 **human authorization lives in the separate approval aggregate**.
 
@@ -126,6 +148,8 @@ FACTORYOS_TEST_MONGO_URI=mongodb://127.0.0.1:27017 \
   python -m pytest -q --run-docker-tests --run-mongo-tests
 ```
 
-Unit verifier/model responses are explicitly scripted. Opt-in tests exercise real
-Docker verification, MongoDB persistence/restart, and an update race. No test
-approves a real operational repair or performs an external workflow action.
+Default tests use scripted verifier/model responses and mongomock for integration
+storage. Opt-in tests exercise real Docker verification and disposable local
+MongoDB persistence/restart/races; they do not establish live Atlas or physical
+hardware operation. No test approves a real operational repair or performs an
+external workflow action.

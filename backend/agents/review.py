@@ -11,7 +11,8 @@ import time
 
 from backend.agents.gemini import GeminiClient, GeminiConfig, GeminiError
 from backend.agents.review_schemas import (
-    ReviewConclusion, decision_review_summary, fault_context, material_incident, review_job_view,
+    ReviewConclusion, case_revision, decision_review_summary, fault_context, material_incident,
+    review_job_view, same_case,
 )
 from backend.agents.schemas import InvestigationConclusion
 from backend.modernization.patching import DEFAULT_OUTPUT_ROOT
@@ -58,7 +59,7 @@ def build_review_snapshot(incident: dict, investigations) -> dict:
     if not source or current.get("status") != "COMPLETED" or source["status"] != "COMPLETED":
         raise ReviewNotReady("Complete a Nemotron investigation on this backend before requesting review")
     if (source["incident_identity"] != incident_identity(material)
-            or source["snapshot_revision"] != content_revision(material)
+            or not same_case(source["snapshot"], material)
             or content_revision(source["snapshot"]) != source["snapshot_revision"]):
         raise ReviewNotReady("Incident evidence changed; run a fresh investigation before requesting review")
     manifest = source["evidence"]
@@ -89,6 +90,7 @@ def build_review_snapshot(incident: dict, investigations) -> dict:
         raise ReviewNotReady("Investigation findings cite unknown evidence")
     bundle = {
         "basis": {"investigation_job_id": source["job_id"], "incident_revision": source["snapshot_revision"],
+                  "case_revision": case_revision(source["snapshot"]),
                   "investigation_result_revision": content_revision(result)},
         "incident": deepcopy(source["snapshot"]), "nemotron": findings,
         "fault_context": fault_context(source["snapshot"]),
@@ -128,10 +130,12 @@ def candidate_is_verified(bundle: dict) -> bool:
         return False
 
 
-def apply_review_policy(conclusion: ReviewConclusion, bundle: dict) -> dict:
+def apply_review_policy(conclusion: ReviewConclusion, bundle: dict, current_incident: dict | None = None) -> dict:
     eligible = candidate_is_verified(bundle)
     incident = bundle["incident"]
-    observed = datetime.fromisoformat(incident["hardware"]["observed_at"].replace("Z", "+00:00"))
+    compatible = current_incident is None or same_case(incident, current_incident)
+    freshness = material_incident(current_incident) if current_incident is not None and compatible else incident
+    observed = datetime.fromisoformat(freshness["hardware"]["observed_at"].replace("Z", "+00:00"))
     if observed.tzinfo is None:
         raise ReviewNotReady("Incident observation must include a timezone")
     age = (datetime.now(timezone.utc) - observed).total_seconds()
@@ -147,6 +151,12 @@ def apply_review_policy(conclusion: ReviewConclusion, bundle: dict) -> dict:
         reasons.append("model_disagrees_with_deterministic_incident_evidence")
         effective = "ESCALATE"
     stale = age > STALE_AFTER_SECONDS or age < -10
+    if not compatible:
+        reasons.append("incident_case_changed")
+        effective = "COLLECT_MORE_EVIDENCE"
+        eligible = False
+        if "collect_fresh_telemetry" not in actions:
+            actions.append("collect_fresh_telemetry")
     if stale:
         reasons.append("incident_telemetry_is_stale_or_future_dated")
         effective = "COLLECT_MORE_EVIDENCE"
@@ -156,8 +166,11 @@ def apply_review_policy(conclusion: ReviewConclusion, bundle: dict) -> dict:
         actions.append("request_human_review")
     return {
         "effective_recommendation": effective, "advisory_actions": actions,
-        "repair_review_eligible": eligible, "requires_fresh_telemetry": stale,
+        "repair_review_eligible": eligible, "requires_fresh_telemetry": stale or not compatible,
         "observation_age_seconds": round(age, 2), "reasons": reasons,
+        "freshness_observed_at": freshness["hardware"]["observed_at"],
+        "freshness_basis": "compatible_current_telemetry" if current_incident is not None and compatible else "captured_incident",
+        "case_revision": case_revision(incident),
         "fault_context": fault_context(incident),
         "needs_human_approval": True, "approval_status": "PENDING", "actions_executed": [], "deployed": False,
     }
@@ -191,7 +204,8 @@ class ReviewService(RepairService):
 
     def request_identity(self, snapshot: dict) -> str:
         config = self.config_factory()
-        return content_revision({"snapshot": content_revision(snapshot), "model": config.model,
+        return content_revision({"review_input": content_revision(snapshot["review_input"]),
+                                 "case_revision": case_revision(snapshot), "model": config.model,
                                  "prompt": SYSTEM_PROMPT, "schema": ReviewConclusion.model_json_schema(),
                                  "max_tokens": config.max_tokens, "timeout": config.request_timeout})
 
@@ -215,7 +229,7 @@ class ReviewService(RepairService):
                 # NOT_VALIDATED in the canonical review summary.
                 "fault_provenance": view["result"].get("fault_provenance", fault_context(job["snapshot"])["fault_provenance"]),
             })
-            view["result"]["policy"] = apply_review_policy(conclusion, job["snapshot"]["review_input"])
+            view["result"]["policy"] = apply_review_policy(conclusion, job["snapshot"]["review_input"], incident)
         return view
 
     def current_summary(self, incident: dict):
@@ -262,7 +276,8 @@ class ReviewService(RepairService):
                     raise ValueError()
             except ValueError:
                 raise GeminiError("INVALID_REVIEW", "Gemini returned an invalid or ungrounded recommendation") from None
-            result = redact({**conclusion.model_dump(), "policy": apply_review_policy(conclusion, bundle)}, config.api_key)
+            latest = self.repository.get_incident_snapshot(job["incident_id"])
+            result = redact({**conclusion.model_dump(), "policy": apply_review_policy(conclusion, bundle, latest)}, config.api_key)
             (workspace / "result.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
             current = self.repository.get_job(job["job_id"])
             view = self.current_view(current)

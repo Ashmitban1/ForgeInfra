@@ -9,12 +9,13 @@ from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.schemas.incident import TelemetryEvent
-from backend.reliability import analyze_reliability
+from backend.legacy_runtime import evaluate_legacy_telemetry
 from backend.system_metrics import collect_system_metrics, router as system_metrics_router
 from backend.storage.mongo import MongoIncidentStore, store_from_environment
 from backend.storage.lifecycle import IncidentUpdate, fingerprint, history_event, utc_now
 from backend.storage.tiger import tiger_from_environment
 from backend.telemetry_history import router as telemetry_history_router
+from backend.agents.review_schemas import case_revision
 
 
 def _remember_incident(incident: dict, kind: str = "telemetry", event_id: str | None = None,
@@ -41,7 +42,7 @@ def _capture_incident_changes() -> None:
 def _retry_persistence(stop: Event, store: MongoIncidentStore) -> None:
     while not stop.wait(2):
         _capture_incident_changes()
-        store.flush()
+        _flush_persistence(store)
 
 
 def _sample_host_telemetry(stop: Event, store) -> None:
@@ -50,6 +51,27 @@ def _sample_host_telemetry(stop: Event, store) -> None:
         store.flush()
         if stop.wait(5):
             break
+
+
+def _refresh_approval_acknowledgements(store) -> None:
+    """Confirm persisted approval versions outside the telemetry lock."""
+    with _lock:
+        pending = [(iid, row["created_at"], row["approval"]["version"])
+                   for iid, row in _incidents.items() if row.get("approval", {}).get("version", 0)
+                   > _approval_acks.get((iid, row["created_at"]), 0)]
+    for iid, created_at, version in pending:
+        if store.approval_acknowledged(iid, created_at, version):
+            with _lock:
+                _approval_acks[(iid, created_at)] = max(version, _approval_acks.get((iid, created_at), 0))
+
+
+def _flush_persistence(store=None) -> bool:
+    store = store if store is not None else _store
+    if store is None:
+        return True
+    flushed = store.flush()
+    _refresh_approval_acknowledgements(store)
+    return flushed
 
 
 @asynccontextmanager
@@ -88,6 +110,7 @@ async def lifespan(app: FastAPI):
                 _history.clear()
                 _history.update({(row["incident_id"], row["event_id"]): row for row in changes})
                 _fingerprints.clear()
+                _approval_acks.clear()
                 _fingerprints.update({iid: fingerprint(row) for iid, row in records.items()})
                 numbers = [int(iid.removeprefix("INC-COOLING-")) for iid in _incidents
                            if iid.startswith("INC-COOLING-")
@@ -100,7 +123,7 @@ async def lifespan(app: FastAPI):
             _store = store
             for iid, change in recovered.items():
                 store.queue(records[iid], change)
-            store.flush()
+            _flush_persistence(store)
             worker = Thread(target=_retry_persistence, args=(stop, store), daemon=True)
             worker.start()
         if tiger is not None:
@@ -115,7 +138,7 @@ async def lifespan(app: FastAPI):
             sampler.join()
         if store is not None:
             _capture_incident_changes()
-            store.flush()
+            _flush_persistence(store)
             if any(store.health()[key] for key in ("pending_incidents", "pending_evidence", "pending_events")):
                 logging.getLogger(__name__).warning(
                     "MongoDB writes remain pending at shutdown; durability is not confirmed"
@@ -150,6 +173,24 @@ _next_incident_number = 1
 _store: MongoIncidentStore | None = None
 _history: dict[tuple[str, str], dict] = {}
 _fingerprints: dict[str, str] = {}
+_approval_acks: dict[tuple[str, str], int] = {}
+
+
+def _advance_case(incident: dict, previous_revision: str | None) -> None:
+    """Call under _lock; a cleared/recurring case never revives an old review."""
+    if previous_revision is None or previous_revision == case_revision(incident):
+        incident.setdefault("case_generation", 0)
+        return
+    incident["case_generation"] = incident.get("case_generation", 0) + 1
+    review = incident.get("decision_review") or {}
+    if review.get("job_id"):
+        review.update(status="STALE", stale=True, recommendation=None,
+                      effective_recommendation=None, actions=[])
+        policy = review.get("policy")
+        if isinstance(policy, dict):
+            policy.update(effective_recommendation=None, advisory_actions=[], repair_review_eligible=False,
+                          requires_fresh_telemetry=True)
+            policy["reasons"] = list(dict.fromkeys([*policy.get("reasons", []), "incident_case_changed"]))
 
 
 def iso(dt: datetime) -> str:
@@ -175,9 +216,9 @@ def receive_telemetry(data: TelemetryEvent, response: Response):
     if data.observed_at.tzinfo is None:
         raise HTTPException(status_code=422, detail="observed_at must include timezone offset")
     received = datetime.now(timezone.utc)
-    computed = analyze_reliability(
-        data.temperature_c, data.cooling_fault, data.observed_at, received
-    )
+    # Execute the fixed baseline before taking _lock. Expected status and alert
+    # eligibility remain deterministic even when the monitor fails.
+    legacy, computed = evaluate_legacy_telemetry(data, received)
     # Do not allow stale input to drive a fresh operational alert; keep discrepancy for triage.
     data_is_fresh = not any(r in computed["reasons"] for r in
                             ("stale_hardware_reading", "future_observation_timestamp"))
@@ -201,11 +242,7 @@ def receive_telemetry(data: TelemetryEvent, response: Response):
             "schema_version": "1.0",
             "device_id": data.device_id,
             "hardware": hardware,
-            "legacy_monitor": {
-                "status": computed["legacy_status"],
-                "source_revision": "demo-legacy-placeholder-v1",
-                "sampled_at": iso(data.observed_at),
-            },
+            "legacy_monitor": legacy,
             "expected_status": computed["expected_status"],
             "reliability": {
                 "mismatch": computed["mismatch"],
@@ -216,12 +253,11 @@ def receive_telemetry(data: TelemetryEvent, response: Response):
         }
         _latest[data.device_id] = result
         current_id = None
+        for iid, record in _incidents.items():
+            if record["device_id"] == data.device_id and record["status"] == "OPEN":
+                current_id = iid
+                break
         if computed["reasons"]:
-            # Reuse the same open incident for repeated readings from one device.
-            for iid, record in _incidents.items():
-                if record["device_id"] == data.device_id and record["status"] == "OPEN":
-                    current_id = iid
-                    break
             if current_id is None:
                 current_id = f"INC-COOLING-{_next_incident_number:03d}"
                 _next_incident_number += 1
@@ -231,7 +267,7 @@ def receive_telemetry(data: TelemetryEvent, response: Response):
                     "device_id": data.device_id,
                     "created_at": iso(received),
                     "status": "OPEN",
-                    "severity": "HIGH" if data_is_fresh and computed["mismatch"] else "REVIEW",
+                    "severity": "HIGH" if data_is_fresh and computed["expected_status"] == "WARNING" else "REVIEW",
                     "investigation": {"status": "PENDING", "agent": "nvidia-nemotron",
                                       "tool_calls": [], "findings": [], "evidence_ids": []},
                     "decision_review": {"status": "PENDING", "reviewer": "gemini",
@@ -241,9 +277,19 @@ def receive_telemetry(data: TelemetryEvent, response: Response):
                                      "github_pr_url": None,
                                      "solana_tx_signature": None},
                 }
-            _incidents[current_id].update(result)
-            _incidents[current_id]["updated_at"] = iso(received)
-            _remember_incident(_incidents[current_id])
+        if current_id is not None:
+            # Healthy readings update evidence on an existing OPEN incident too;
+            # resolution remains an explicit operator action.
+            incident = _incidents[current_id]
+            before = case_revision(incident) if "hardware" in incident else None
+            incident.update(result)
+            incident["severity"] = "HIGH" if data_is_fresh and computed["expected_status"] == "WARNING" else "REVIEW"
+            _advance_case(incident, before)
+            # This is the commit time, not the pre-execution receive time. P2/P3
+            # may have committed while the monitor ran; restart recovery orders
+            # snapshots by updated_at and must never roll telemetry backward.
+            incident["updated_at"] = utc_now()
+            _remember_incident(incident)
         # Independent, deterministic alert; MUST NOT rely on model availability.
         should_alert = data_is_fresh and computed["expected_status"] == "WARNING"
         receipt = {
@@ -255,7 +301,7 @@ def receive_telemetry(data: TelemetryEvent, response: Response):
     # Database IO is outside the telemetry lock. Failed writes remain queued for
     # the retry worker, and the deterministic alert still returns to the caller.
     if _store is not None:
-        _store.flush()
+        _flush_persistence()
         state = _store.health()
         response.headers["X-FactoryOS-Persistence"] = (
             ("persisted" if current_id is not None else "not_applicable")
@@ -316,11 +362,13 @@ def update_incident(incident_id: str, update: IncidentUpdate) -> dict:
         ):
             raise HTTPException(status_code=409, detail="This device already has another OPEN incident")
         changes = update.model_dump(exclude_none=True, exclude={"event_id", "expected_updated_at", "note"})
+        before = case_revision(incident)
         for field, value in changes.items():
             if isinstance(value, dict):
                 incident[field].update(deepcopy(value))
             else:
                 incident[field] = value
+        _advance_case(incident, before)
         incident["updated_at"] = utc_now()
         kind = "resolution" if update.status == "RESOLVED" else (
             "reopen" if update.status == "OPEN" else "update"
@@ -333,7 +381,7 @@ def update_incident(incident_id: str, update: IncidentUpdate) -> dict:
 def post_incident_update(incident_id: str, update: IncidentUpdate, response: Response):
     result = update_incident(incident_id, update)
     if _store is not None:
-        _store.flush()
+        _flush_persistence()
         response.headers["X-FactoryOS-Persistence"] = (
             "persisted" if _store.health()["status"] == "OK" else "pending"
         )
@@ -350,3 +398,83 @@ def get_incident_history(incident_id: str, limit: int = Query(default=100, ge=1,
         changes = sorted((row for (iid, _), row in _history.items() if iid == incident_id),
                          key=lambda row: row["recorded_at"])
         return {"incident_id": incident_id, "total": len(changes), "events": deepcopy(changes[-limit:])}
+
+
+def get_incident_snapshot(incident_id: str) -> dict:
+    """Trusted P2 read boundary with current approval durability metadata."""
+    from backend.modernization.repository import IncidentMissing, snapshot_of
+    with _lock:
+        current = _incidents.get(incident_id)
+        if current is None:
+            raise IncidentMissing(incident_id)
+        version = current.get("approval", {}).get("version", 0)
+        needs_ack = _store is not None and version > _approval_acks.get((incident_id, current["created_at"]), 0)
+    if needs_ack:
+        _flush_persistence()
+    with _lock:
+        current = _incidents.get(incident_id)
+        if current is None:
+            raise IncidentMissing(incident_id)
+        snapshot = snapshot_of(current)
+        version = current.get("approval", {}).get("version", 0)
+        status = "VOLATILE" if _store is None else (
+            "PERSISTED" if version <= _approval_acks.get((incident_id, current["created_at"]), 0) else "PENDING"
+        )
+        snapshot["approval_persistence"] = {"status": status, "version": version}
+        return snapshot
+
+
+def publish_job(job: dict, field: str, summarizer, previous_job_lookup) -> bool:
+    """Publish trusted job transitions through P1's canonical writer/history."""
+    from backend.modernization.repository import incident_identity, snapshot_of
+    from backend.agents.review_schemas import review_job_view
+    if field not in {"repair", "investigation", "decision_review"}:
+        raise ValueError("Unsupported job publication field")
+    for _ in range(3):
+        with _lock:
+            current = _incidents.get(job["incident_id"])
+            if current is None or incident_identity(snapshot_of(current)) != job["incident_identity"]:
+                return False
+            previous_summary = deepcopy(current.get(field, {}))
+        previous_id = previous_summary.get("job_id")
+        previous = previous_job_lookup(previous_id) if previous_id and previous_id != job["job_id"] else None
+        with _lock:
+            current = _incidents.get(job["incident_id"])
+            if current is None or incident_identity(snapshot_of(current)) != job["incident_identity"]:
+                return False
+            if current.get(field, {}) != previous_summary:
+                continue
+            if previous and previous["created_at"] > job["created_at"]:
+                return False
+            summary = summarizer(review_job_view(current, job) if field == "decision_review" else job)
+            if current.get(field) == summary:
+                return True
+            current[field] = summary
+            current["updated_at"] = utc_now()
+            request_hash = fingerprint({"job_id": job["job_id"], "status": job["status"], "summary": summary})
+            _remember_incident(current, field + "_" + job["status"].lower(), "p2-" + request_hash, request_hash)
+        _flush_persistence()
+        return True
+    return False
+
+
+def save_approval(incident_id: str, expected_incident: dict, approval: dict) -> bool:
+    """Privileged CAS, never exposed through the unauthenticated update model."""
+    from backend.modernization.approval import guarded_snapshot
+    from backend.modernization.repository import IncidentMissing, snapshot_of
+    from pymongo.errors import PyMongoError
+    with _lock:
+        current = _incidents.get(incident_id)
+        if current is None:
+            raise IncidentMissing(incident_id)
+        if guarded_snapshot(snapshot_of(current)) != guarded_snapshot(expected_incident):
+            return False
+        current["approval"] = deepcopy(approval)
+        current["updated_at"] = utc_now()
+        decision = approval["decisions"][-1]
+        _remember_incident(current, "human_approval", decision["decision_id"],
+                           decision["request_revision"], decision.get("comment") or None)
+    _flush_persistence()
+    if get_incident_snapshot(incident_id)["approval_persistence"]["status"] == "PENDING":
+        raise PyMongoError("Approval persistence is pending")
+    return True

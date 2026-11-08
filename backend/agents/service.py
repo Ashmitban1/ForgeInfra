@@ -7,6 +7,7 @@ from pathlib import Path
 
 from backend.agents.investigation import SYSTEM_PROMPT, run_investigation
 from backend.agents.nemotron import NemotronClient, NemotronConfig, NemotronError
+from backend.agents.review_schemas import case_revision, material_incident
 from backend.agents.tools import InvestigationTools
 from backend.modernization.patching import DEFAULT_OUTPUT_ROOT, source_hash
 from backend.modernization.repository import content_revision
@@ -29,10 +30,7 @@ class InvestigationService(RepairService):
         self.tools_factory = tools_factory
 
     def prepare_snapshot(self, snapshot: dict) -> dict:
-        return {key: deepcopy(snapshot[key]) for key in (
-            "schema_version", "incident_id", "device_id", "created_at", "updated_at", "status",
-            "severity", "hardware", "legacy_monitor", "expected_status", "reliability",
-        ) if key in snapshot}
+        return material_incident(snapshot)
 
     def validate_snapshot(self, snapshot: dict):
         self.config_factory()  # Missing credentials are a 503 before accepting work.
@@ -42,7 +40,7 @@ class InvestigationService(RepairService):
     def request_identity(self, snapshot: dict) -> str:
         config = self.config_factory()
         return content_revision({
-            "snapshot": content_revision(snapshot), "model": config.model,
+            "case_revision": case_revision(snapshot), "model": config.model,
             "source": source_hash(LEGACY_MONITOR_PATH), "system_prompt": SYSTEM_PROMPT,
             "limits": {key: getattr(config, key) for key in LIMIT_FIELDS},
         })

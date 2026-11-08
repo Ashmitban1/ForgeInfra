@@ -6,6 +6,7 @@ from typing import Literal
 import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
+from pymongo.errors import PyMongoError
 
 from backend.agents.review import build_review_snapshot, candidate_is_verified, sha256
 from backend.agents.review_schemas import ReviewConclusion, fault_context, review_is_current
@@ -19,7 +20,8 @@ MAX_PACKAGES = 16
 MAX_PACKAGE_BYTES = 256_000
 GUARDED_FIELDS = (
     "schema_version", "incident_id", "device_id", "created_at", "updated_at", "status", "severity",
-    "hardware", "legacy_monitor", "expected_status", "reliability", "investigation", "decision_review", "approval",
+    "hardware", "legacy_monitor", "expected_status", "reliability", "case_generation",
+    "investigation", "decision_review", "approval",
 )
 
 
@@ -154,6 +156,9 @@ class ApprovalService:
         state = self.state(incident)
         package = self.package(incident)
         reasons = self.eligibility(incident, package)
+        persistence = incident.get("approval_persistence", {"status": "UNSPECIFIED", "version": state["version"]})
+        if state["version"] and persistence["status"] == "PENDING":
+            reasons.append("approval_persistence_pending")
         try:
             auth = self.auth_factory()
         except ApprovalAuthError:
@@ -177,6 +182,7 @@ class ApprovalService:
             "package_revision": package["package_revision"] if package else None,
             "candidate_revision": package["candidate_revision"] if package else None,
             "history_count": len(state["decisions"]), "deployed": False,
+            "persistence": deepcopy(persistence),
         }
         if include_package:
             result["package"] = package
@@ -202,6 +208,8 @@ class ApprovalService:
             if previous:
                 if previous["request_revision"] != payload_revision:
                     raise ApprovalConflict("Idempotency key already identifies a different decision")
+                if incident.get("approval_persistence", {}).get("status") == "PENDING":
+                    raise PyMongoError("Approval persistence is pending")
                 return {**self.view(incident), "recorded_decision": previous}, False
             package = self.package(incident)
             if (not package or package["package_revision"] != request.package_revision

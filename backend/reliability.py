@@ -1,7 +1,5 @@
-"""Deterministic checks. The legacy implementation is a demo adapter ONLY.
-Person 2 will replace get_legacy_status with the actual legacy fixture runner.
-"""
-from datetime import datetime, timezone, timedelta
+"""Deterministic checks, independent of legacy execution and AI availability."""
+from datetime import datetime, timezone
 
 STALE_AFTER_SECONDS = 90
 
@@ -17,7 +15,14 @@ def independent_expected_status(temperature_c: float, cooling_fault: bool) -> st
 
 
 def analyze_reliability(temperature_c: float, cooling_fault: bool,
-                        observed_at: datetime, now: datetime) -> dict:
+                        observed_at: datetime, now: datetime, *,
+                        legacy_monitor: dict | None = None) -> dict:
+    """Compare actual monitor evidence with independent expected behavior.
+
+    Four-argument callers retain the original characterization behavior. Live
+    ingestion supplies an explicit result from ``evaluate_legacy_telemetry``;
+    an unavailable result is UNKNOWN, never a successful NORMAL fallback.
+    """
     if observed_at.tzinfo is None:
         raise ValueError("observed_at needs timezone information")
     reasons = []
@@ -26,10 +31,15 @@ def analyze_reliability(temperature_c: float, cooling_fault: bool,
         reasons.append("stale_hardware_reading")
     if age < -10:
         reasons.append("future_observation_timestamp")
-    legacy = legacy_monitor_stub(temperature_c)
+    legacy = (legacy_monitor_stub(temperature_c) if legacy_monitor is None
+              else legacy_monitor.get("status"))
     expected = independent_expected_status(temperature_c, cooling_fault)
-    mismatch = legacy != expected
-    if mismatch:
+    available = legacy in ("NORMAL", "WARNING")
+    mismatch = legacy != expected if available else None
+    if not available:
+        legacy = "UNKNOWN"
+        reasons.append("legacy_monitor_unavailable")
+    elif mismatch:
         reasons.append("legacy_missed_fault")
     return {
         "legacy_status": legacy,

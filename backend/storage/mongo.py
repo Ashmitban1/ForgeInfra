@@ -127,6 +127,19 @@ class MongoIncidentStore:
     def close(self) -> None:
         self.client.close()
 
+    def approval_acknowledged(self, incident_id: str, created_at: str, version: int) -> bool:
+        """Read back the exact incarnation/version before authorizing execution."""
+        try:
+            with timeout(3):
+                return self.incidents.find_one(
+                    {"_id": incident_id, "created_at": created_at, "approval.version": {"$gte": version}},
+                    {"_id": 1},
+                ) is not None
+        except PyMongoError:
+            with self._lock:
+                self._last_error = "mongodb_unavailable"
+            return False
+
 
 def store_from_environment() -> MongoIncidentStore | None:
     root = Path(__file__).resolve().parents[2]

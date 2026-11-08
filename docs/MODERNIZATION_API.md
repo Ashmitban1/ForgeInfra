@@ -1,4 +1,4 @@
-# Person 2 modernization API — step 4
+# Integrated modernization API
 
 ## Local end-to-end run
 
@@ -32,56 +32,38 @@ There is no need to send a source path, model prompt, shell command, or image na
 Requests cannot select code to execute. This step supports the known
 `legacy_missed_fault` cooling scenario only.
 
-## One canonical incident store
+## One canonical incident writer
 
-`backend.modernization.app:app` imports Person 1's existing app, `_incidents`, and
-`_lock`, then mounts the modernization router. The memory repository uses that
-same dictionary. The existing incident GET exposes its additive `repair` summary.
-The wrapper does not register Person 3's Jira router on this branch.
+`backend.modernization.app:app` is P1's same FastAPI app with P2 routes mounted.
+Start this single entry point for telemetry, storage, investigation, review, and
+approval. It does not register P3's notification router or alter the frontend.
 
-**This wrapper is local development with volatile memory. It does not connect to
-Atlas just because `MONGODB_URI` is present.** Check
-`GET /api/modernization/capabilities`: `storage_backend` reports the actual adapter.
-Person 1's published backend still has no MongoDB incident writer. Creating a
-parallel database that only P2 reads would split the team's canonical incidents.
+P1 owns the canonical incident cache, lock, MongoDB writer, reliability evidence,
+and lifecycle history. `SharedIncidentRepository` reads through P1's snapshot
+callback and synchronously publishes each accepted P2 job transition through P1's
+controller. P2 never writes competing incident snapshots directly to MongoDB.
 
-The MongoDB adapter is implemented and tested against a real local MongoDB server.
-Mount it on the same Atlas-backed app/collections that P1's writer uses:
+With backend-only `MONGODB_URI` and optional `MONGODB_DATABASE` (default
+`factoryos`), P1 restores storage before the wrapper creates fresh repositories
+and workers. P2 reuses that existing database/client for job-only collections:
+`repair_jobs`, `investigation_jobs`, and `review_jobs`. Optional
+`MONGODB_REPAIR_JOBS_COLLECTION`, `MONGODB_INVESTIGATION_JOBS_COLLECTION`, and
+`MONGODB_REVIEW_JOBS_COLLECTION` override those names; they must be distinct and
+cannot collide with `incidents`, `reliability_evidence`, or `incident_events`.
+P1 owns connection shutdown. Do not mount a separate `MongoIncidentRepository`
+as a canonical incident writer in this app.
 
-```python
-from backend.modernization.mongo_repository import MongoIncidentRepository
-from backend.modernization.router import create_modernization_router
-from backend.modernization.service import RepairService
-
-# `app` is the team's existing FastAPI app, not a new competing application.
-repository = MongoIncidentRepository(database["incidents"], database["repair_jobs"])
-app.include_router(create_modernization_router(RepairService(repository)))
-```
-
-Alternatively, `MongoIncidentRepository.from_environment()` opens and pings a
-connection using `MONGODB_URI`, `MONGODB_DATABASE` (default `factoryos`),
-`MONGODB_INCIDENTS_COLLECTION` (default `incidents`), and
-`MONGODB_REPAIR_JOBS_COLLECTION` (default `repair_jobs`). Environment loading is
-the shared app's responsibility; this helper does not read dotenv files.
-The app owner should close an owned client with `repository.close()` at shutdown.
-Use timezone-aware MongoDB reads for native BSON dates.
-
-Required incident document shape is the existing v1 public incident contract,
-including `incident_id`, `device_id`, `created_at`, `hardware`, `legacy_monitor`,
-`expected_status`, and `reliability`. Keep a unique canonical incident ID. Internal
-MongoDB `_id` is excluded from public snapshots. P1 updates should preserve
-teammate-owned `repair`, `investigation`, `decision_review`, and integration fields;
-avoid replacing a whole document with a telemetry-only projection.
-
-P2 adds only repair jobs and the incident's `repair` summary. It does not implement
-P1's ingestion persistence, Tiger Data telemetry, or AI updates ahead of step 5.
-Atlas itself has not been connected or verified by these local tests.
+Without MongoDB, incidents and jobs are volatile. Check
+`GET /api/modernization/capabilities` for the actual `storage_backend`, and
+`GET /api/storage/health` for pending canonical writes. Runtime outage queues are
+memory-only until acknowledged. Configured MongoDB startup fails safely if
+restoration cannot complete. Local tests do not establish live Atlas connectivity.
 
 ## Endpoints and response contract
 
 | Method/path | Behavior |
 | --- | --- |
-| `GET /api/modernization/capabilities` | Real storage mode and enabled features; investigate/approval/deploy are false |
+| `GET /api/modernization/capabilities` | Actual storage mode and registered repair/investigate/review/approval features; deploy remains false |
 | `POST /api/incidents/{id}/repair` | Validate an existing incident, freeze evidence, and reserve/queue one job |
 | `GET /api/incidents/{id}/analysis` | Existing AI fields plus the latest repair job for that incident incarnation |
 | `GET /api/repairs/{job_id}` | Poll one job, including its snapshot and result |
@@ -152,21 +134,36 @@ URLs. Diff reads use the stored job result; there is no arbitrary-file endpoint.
 
 The immutable snapshot includes original measurements, source/observation time,
 simulation flags, recorded monitor decision, and the incident's creation identity.
-Its canonical SHA-256 binds the report to those inputs; later readings do not
-rewrite the job. Each job has its own trace ID, and each proposal has a repair ID.
+Its canonical `snapshot_revision` SHA-256 binds the report to those exact inputs;
+later readings never rewrite the job. Each job has its own trace ID, and each
+proposal has a repair ID.
+
+Reviews separately bind a monitoring `case_revision`. Fresh samples with advancing
+sequence/time and equivalent cooling state, temperature threshold band, source,
+and reliability can preserve the case despite measurement jitter. Temperature
+bands also distinguish exact 0, 1, and 35 boundaries because the constrained
+candidate rule language can compare against these values. Material
+telemetry or operational-status changes increment P1's `case_generation`.
+Healthy samples update an existing OPEN incident without auto-resolving it;
+fault-clear-fault transitions cannot revive the old review or approval.
 
 The worker runs the same original/candidate acceptance suites, then replays the
 actual frozen event in Docker if those checks pass. This is safe offline
-verification, not activation of the candidate. The live monitor still uses P1's
-stub until a separately approved integration changes it. A valid replay ends in
-WARNING while the cooling fault remains true; monitoring repair is not equipment
-recovery and does not close the incident.
+verification, not activation of the candidate. Live telemetry already executes
+the fixed, team-authored original fixture via `backend/legacy_runtime.py`, outside
+the telemetry lock. It reports the actual source hash and validated decision.
+Execution failures produce `status=UNKNOWN`, `health=DEGRADED`, and
+`legacy_monitor_unavailable`; no NORMAL result is invented. Expected status and
+fresh-data alerts remain deterministic when the monitor or AI is unavailable.
+A verified candidate stays offline: replay can end in WARNING while the cooling
+fault remains true, and does not close the incident or prove equipment recovery.
 
 The job queue has one execution thread and at most four accepted pending/running
 jobs. Store locks are released before Docker runs, so telemetry can continue.
 MongoDB uses unique request and partial active-job indexes to prevent duplicate
-reservations; source snapshots/results survive service recreation. On startup,
-unfinished jobs become INTERRUPTED instead of pretending to still run.
+reservations; acknowledged snapshots/results survive application restart. Every
+app lifecycle creates fresh services after P1 restoration. On startup, unfinished
+jobs become INTERRUPTED instead of pretending to still run.
 
 Run **one modernization worker process/replica** for this prototype. Startup recovery
 assumes exclusive ownership of its job collection; do not mount it in multiple
@@ -174,15 +171,27 @@ Uvicorn workers or replicas. Atlas persistence does not turn this in-process exe
 into a distributed durable queue. Graceful shutdown waits for accepted work;
 unexpected termination requires a new request key to retry interrupted jobs.
 
-The `/repair` routes perform no Nemotron/Gemini calls, approval, merge, deployment,
-Jira/Slack call, Tiger Data write, or cloud deployment. Step 5 separately adds real
-Nemotron `/investigate` routes in the same wrapper; see [the agent guide](../backend/agents/README.md).
-Repair execution itself preserves investigation/decision-review fields. The backend is still unauthenticated;
-use the current local/isolated setup until the team's shared deployment is protected.
+The `/repair` route verifies the manually authored demo patch. Nemotron
+`/investigate` separately proposes constrained generated candidates, and `/review`
+runs independent Gemini review. See [the agent guide](../backend/agents/README.md)
+and [Gemini guide](../backend/agents/GEMINI_REVIEW.md). Neither model can authorize
+deployment or suppress deterministic alerts.
+
+Authenticated human approval uses P1's locked compare-and-set boundary and the
+canonical persistence queue. MongoDB decisions require durable readback. If a
+write remains pending, POST returns 503, retains the local audit, and blocks
+authorization; retry the same `Idempotency-Key` after recovery. Approval responses
+report `persistence.status` as PERSISTED, PENDING, or VOLATILE. See
+[the human approval guide](HUMAN_APPROVAL_API.md).
+
+These workflows perform no activation, merge, deployment, PR creation, or
+Jira/Slack action. Other routes remain unauthenticated prototype endpoints; keep
+the backend local/isolated until protected.
 
 ## Validation
 
 ```sh
+python -m pip install -r requirements-dev.txt
 python -m pytest -q
 python -m pytest -q --run-docker-tests
 ```
@@ -195,7 +204,13 @@ FACTORYOS_TEST_MONGO_URI=mongodb://127.0.0.1:27017 \
   python -m pytest -q --run-mongo-tests --run-docker-tests
 ```
 
-The tests intentionally reject Atlas/remote test URIs. MongoDB checks cover durable
-results, service recreation, atomic concurrent reservations, interrupted recovery,
-and recycled incident IDs. Docker API coverage creates an incident through P1's
-real ingestion handler and verifies actual acceptance results and snapshot replay.
+These opt-in modernization tests reject Atlas/remote test URIs. MongoDB checks
+cover durable results, service recreation, concurrent reservations, interrupted
+recovery, and recycled incident IDs. Docker coverage verifies actual acceptance
+results and frozen-event replay. Default P1/P2 integration tests use mongomock
+and scripted provider/verifier responses; they do not prove physical hardware,
+live cloud storage, or current model-provider availability.
+
+Default tests blank developer storage/provider credentials, so ignored `.env`
+files cannot turn ordinary tests into cloud writes or live model requests. Live
+storage checks use their explicit `FACTORYOS_TEST_*` connection settings.

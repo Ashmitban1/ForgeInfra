@@ -1,5 +1,19 @@
 """Repository-wide options for modernization acceptance and integration tests."""
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolate_developer_configuration(monkeypatch):
+    """Default tests must not use ignored developer cloud/provider credentials.
+
+    Opt-in live storage tests explicitly pass their FACTORYOS_TEST_* URI into a
+    disposable subprocess/database. Individual configuration tests may override
+    these values with monkeypatch after this fixture has installed the defaults.
+    """
+    for name in ("MONGODB_URI", "TIGERDATA_DATABASE_URL", "NVIDIA_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.setenv(name, "")
+
 
 def pytest_addoption(parser):
     parser.addoption("--monitor-source", default=None, help="Source file to test inside Docker")

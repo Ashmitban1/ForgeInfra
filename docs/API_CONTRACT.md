@@ -1,7 +1,15 @@
 # FactoryOS API contract (v1)
 
-Base: `http://127.0.0.1:8000`. Owner P1: `GET /health`, `POST /api/telemetry`, `GET /api/telemetry/latest`, `GET /api/incidents`, `GET /api/incidents/{incident_id}` (implemented, in-memory). P2 implemented via `backend.modernization.app:app`: incident `/investigate`, `/review`, `/analysis`, `/repair`, authenticated GET/POST `/approval` and GET `/approval/history`; investigation/review job reads; investigation patch and repair report/diff reads. P3 notifications and approval UI remain separate integrations. See [the modernization API](MODERNIZATION_API.md), [Nemotron guide](../backend/agents/README.md), [Gemini guide](../backend/agents/GEMINI_REVIEW.md), and [human approval guide](HUMAN_APPROVAL_API.md).
-Base: `http://127.0.0.1:8000`. Owner P1: `GET /health`, `POST /api/telemetry`, `GET /api/telemetry/latest`, `GET /api/incidents`, `GET /api/incidents/{incident_id}` (implemented; optional MongoDB incident persistence). P2 proposed: `POST /api/incidents/{id}/investigate`, `GET /api/incidents/{id}/analysis`, `POST /api/incidents/{id}/repair` (not implemented). P3 proposed: `POST /api/incidents/{id}/notify`, `POST /api/repairs/{id}/approve` (not implemented).
+Base: `http://127.0.0.1:8000`. Run the integrated entry point
+`backend.modernization.app:app`: P1's same FastAPI app with P2 routers mounted.
+P1 owns telemetry, incidents, lifecycle/history, and optional MongoDB/Tiger Data
+persistence. P2 implements incident `/investigate`, `/review`, `/analysis`,
+`/repair`, authenticated GET/POST `/approval` and GET `/approval/history`, plus
+job/report/diff reads. P3 notifications and approval UI are separate integrations.
+See [the modernization API](MODERNIZATION_API.md),
+[Nemotron guide](../backend/agents/README.md),
+[Gemini guide](../backend/agents/GEMINI_REVIEW.md), and
+[human approval guide](HUMAN_APPROVAL_API.md).
 
 ## Input: POST /api/telemetry
 ```json
@@ -14,16 +22,34 @@ Base: `http://127.0.0.1:8000`. Owner P1: `GET /health`, `POST /api/telemetry`, `
 ```
 This is SAMPLE data. The Arduino gateway uses `source_kind: "arduino_serial"`. A source label is not authenticated proof. Post response contains `received`, optional `incident_id`, `should_alert`, `hardware`, `legacy_monitor`, `expected_status`, and `reliability`. A discrepancy should result in `reliability.mismatch: true` and `reliability.reasons` containing `legacy_missed_fault`.
 
-`legacy_monitor.source_revision` presently identifies a placeholder function, **not genuine reverse engineering**. P2 will integrate the actual controlled legacy fixture without breaking this contract.
+Ingestion executes the fixed team-authored `fixtures/legacy_monitor/monitor.py`
+outside the telemetry lock. `legacy_monitor.source_revision` is its actual SHA-256
+source hash, `sampled_at` identifies the sample, and successful output includes
+`health: "OK"`, `execution_status: "COMPLETED"`, and
+`target_binding: "representative_fixture"`. This is representative legacy software,
+not an acquired vendor codebase; its temperature-only fault is preserved.
 
-Incidents include investigation and decision-review fields set `PENDING` until actual Nemotron and Gemini calls, and provider IDs set `null` until Jira/Slack/Solana integrations are working. Storage resets whenever FastAPI restarts. Do not deploy publicly without auth.
+Execution/validation failure yields `status: "UNKNOWN"`, `health: "DEGRADED"`,
+`execution_status: "FAILED"`, a safe error, and `reliability.mismatch: null` with
+reason `legacy_monitor_unavailable`. The attempted source hash is retained when
+available. Failure never becomes NORMAL. `expected_status` and `should_alert`
+remain independent of both monitor and AI availability; stale/future samples
+cannot produce a fresh operational alert.
+
+Healthy readings update an existing OPEN incident without automatically resolving
+it. Material telemetry/status changes increment `case_generation`, including
+fault clearing and recurrence. Investigation/review fields begin PENDING and
+integration IDs remain null until their actual workflows populate them.
 
 ## Modernization extension (Person 2)
 
-The P2 wrapper mounts a background repair router on P1's existing app and dictionary;
-it does not edit the P1 handlers or create a second incident store. Its local state
-is volatile. A tested MongoDB repository adapter is supplied for the canonical Atlas
-app; P1's Atlas telemetry/incident writer has not been connected on this branch.
+P1 remains the sole canonical incident writer. `SharedIncidentRepository` reads
+P1 snapshots and synchronously publishes accepted P2 transitions through P1's
+history/persistence callbacks. After P1 restores MongoDB, fresh lifecycle-owned
+workers reuse its existing database/client for `repair_jobs`,
+`investigation_jobs`, and `review_jobs`. No independent P2 canonical snapshot
+writer is mounted. Memory mode is volatile; acknowledged MongoDB jobs survive
+restart and unfinished jobs become INTERRUPTED. Use one app worker/process.
 
 `POST /api/incidents/{id}/repair` accepts no body and an optional `Idempotency-Key`
 header. It returns a job with status 202 while queued/running, or 200 for a reused
@@ -81,7 +107,10 @@ configuration/worker/storage: 503. Poll the returned `links.job`,
 `decision_review` gains actual model/job/trace IDs, review basis, explanation,
 risks, evidence IDs, repair assessment, provider metadata, safe errors, and policy.
 States: PENDING, RUNNING, COMPLETED, FAILED, INTERRUPTED, STALE. `/analysis`
-derives stale status when live telemetry or the investigation no longer matches.
+derives stale status when the monitoring case or investigation no longer matches.
+Each job's exact `snapshot_revision` remains immutable. A separate `case_revision`
+allows equivalent advancing samples with fresh timestamps and sequence numbers;
+material changes or an intervening fault-clear-fault cycle invalidate the review.
 Its `recommendation` is the backend policy's effective recommendation;
 `model_recommendation` preserves the model's original choice. Job responses expose
 raw structured output in `result`, with `result.policy.effective_recommendation`.
@@ -100,9 +129,8 @@ deterministic mismatch evidence or bypass human approval. Approval stays PENDING
 `actions_executed=[]`, and `deployed=false`. Review does not send Jira/Slack
 messages, change operational incident status, or activate the monitor.
 
-Review jobs use a separate `review_jobs` MongoDB collection over the same canonical
-incidents, or a separate job dictionary over P1's same memory dict/lock. The local
-wrapper remains memory-backed. Atlas writer integration is still separate.
+Review jobs use their own `review_jobs` namespace through the shared adapter,
+backed by the same P1 MongoDB database/client when configured or volatile memory.
 
 ## Human decision extension (Person 2)
 
@@ -126,12 +154,19 @@ decisions. Removing an approving reviewer or changing/aging evidence invalidates
 execution eligibility without rewriting history. Capabilities add approval support
 and `approval_configured`; automatic deployment remains false.
 
-Frozen package/history changes use one locked/atomic canonical-incident update.
-`ApprovalService.require_approved` rechecks the exact current binding for the future
+Frozen package/history changes use P1's locked compare-and-set boundary and
+canonical persistence queue. With MongoDB, durable readback must confirm the
+approval version. Pending persistence returns 503 while retaining the cached audit;
+`approval_persistence_pending` blocks execution and an APPROVE reads as STALE.
+Retry the same `Idempotency-Key` after recovery to retrieve the existing decision.
+Approval views expose `persistence: {status, version}` with status PERSISTED,
+PENDING, or VOLATILE. This is derived durability metadata, not part of the frozen
+evidence hash.
+
+`ApprovalService.require_approved` rechecks the exact current binding for a future
 execution worker. This endpoint itself activates no monitor and performs no merge,
-deployment, PR creation, or notifications. Other existing routes are still local
-unauthenticated prototype routes.
-Incidents include investigation and decision-review fields set `PENDING` until actual Nemotron and Gemini calls, and provider IDs set `null` until Jira/Slack/Solana integrations are working. Memory-mode storage resets whenever FastAPI restarts; configured MongoDB restores saved incidents. Do not deploy publicly without auth.
+deployment, PR creation, or notifications. Other existing routes remain local
+unauthenticated prototype routes. Do not deploy publicly without auth.
 
 ## Optional MongoDB persistence
 
@@ -140,6 +175,8 @@ Configure backend-only `MONGODB_URI` and optional `MONGODB_DATABASE` (default
 Acknowledged incidents and immutable reliability evidence are upserted in MongoDB;
 startup restores incident records, saved source sequences and numeric ID allocation.
 Healthy/latest telemetry is not restored. Single application worker/writer only.
+P2 summaries and approval history use this same canonical writer; job documents
+live in separate collections, not a competing incident database.
 
 `POST /api/telemetry` adds the header `X-FactoryOS-Persistence`: `persisted`,
 `pending`, `disabled` or `not_applicable` (healthy input without a saved incident).
@@ -203,8 +240,9 @@ details, examples, teammate boundaries and live checks are in
 - `GET /api/incidents/{id}/history?limit=100`: `{incident_id,total,events}` with
   complete snapshots, notes, event IDs and timestamps, most recent 1..500 events
   ordered chronologically. Mongo `incident_events` retains the lifecycle.
-- Mongo storage health additionally includes `pending_events`; runtime retry
-  also captures observed changes made by older in-process integration adapters.
+- Mongo storage health additionally includes `pending_events`. P2 publishes each
+  accepted job transition synchronously to history before queued persistence;
+  the compatibility scanner only supports older direct-dictionary adapters.
 - `GET /api/telemetry/history`: requires `source_kind` and `source_id`; optional
   `start`, `end`, `limit` (1..1000). Returns `{source_kind,source_id,start,end,samples}`.
 - `GET /api/telemetry/summary`: same source/time filters and `bucket_seconds`

@@ -46,7 +46,7 @@ class RepairService:
 
     def prepare_snapshot(self, snapshot: dict) -> dict:
         # Human audit packages must never recursively enter future repair jobs.
-        return {key: value for key, value in snapshot.items() if key != "approval"}
+        return {key: value for key, value in snapshot.items() if key not in {"approval", "approval_persistence"}}
 
     def validate_snapshot(self, snapshot: dict):
         incident_event(snapshot)
