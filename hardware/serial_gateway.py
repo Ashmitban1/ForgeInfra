@@ -41,7 +41,14 @@ def main():
                 }
                 seq += 1
                 r = requests.post(args.url, json=event, timeout=10)
-                print(r.status_code, r.json().get("reliability", r.text))
+                result = r.json()
+                print(r.status_code, {
+                    "incident_id": result.get("incident_id"),
+                    "device_id": event["device_id"], "sequence": event["sequence"],
+                    "cooling_fault": event["cooling_fault"],
+                    "persistence": r.headers.get("X-FactoryOS-Persistence", "unknown"),
+                    "reliability": result.get("reliability"),
+                })
                 r.raise_for_status()
             except (ValueError, KeyError) as err:
                 print("Skipped non-JSON or incomplete serial line:", raw, err)

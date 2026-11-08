@@ -12,6 +12,9 @@ from pymongo.errors import PyMongoError
 from pymongo.write_concern import WriteConcern
 from backend.storage.lifecycle import history_event
 
+RESTORE_TIMEOUT_SECONDS = 60
+RESTORE_BATCH_SIZE = 100
+
 
 class StorageUnavailable(RuntimeError):
     """Safe public error: never include connection strings or driver diagnostics."""
@@ -27,20 +30,25 @@ class MongoIncidentStore:
         self._lock = Lock()
         self._flush_lock = Lock()
         self._pending_incidents: dict[str, dict] = {}
+        self._pending_dependencies: dict[str, tuple[str, str]] = {}
         self._pending_evidence: dict[str, dict] = {}
         self._pending_events: dict[str, dict] = {}
         self._last_error: str | None = None
 
     def load_incidents(self) -> list[dict]:
         try:
-            self.client.admin.command("ping")
-            return list(self.incidents.find({}, {"_id": 0}))
+            # Startup reads can span many network batches. Do not reuse the
+            # short operational-write deadline for restoring the entire store.
+            with timeout(RESTORE_TIMEOUT_SECONDS):
+                self.client.admin.command("ping")
+                return list(self.incidents.find({}, {"_id": 0}).batch_size(RESTORE_BATCH_SIZE))
         except PyMongoError:
             raise StorageUnavailable("MongoDB incident retrieval unavailable") from None
 
     def load_events(self) -> list[dict]:
         try:
-            return list(self.events.find({}, {"_id": 0}))
+            with timeout(RESTORE_TIMEOUT_SECONDS):
+                return list(self.events.find({}, {"_id": 0}).batch_size(RESTORE_BATCH_SIZE))
         except PyMongoError:
             raise StorageUnavailable("MongoDB lifecycle retrieval unavailable") from None
 
@@ -66,6 +74,7 @@ class MongoIncidentStore:
         ]).encode("utf-8")).hexdigest()
         with self._lock:
             self._pending_incidents[snapshot["incident_id"]] = snapshot
+            self._pending_dependencies[snapshot["incident_id"]] = (evidence_id, change_id)
             self._pending_evidence.setdefault(evidence_id, event)
             self._pending_events.setdefault(change_id, change)
 
@@ -79,21 +88,36 @@ class MongoIncidentStore:
             return False
         try:
             with self._lock:
-                evidence = list(self._pending_evidence.items())
+                evidence = dict(self._pending_evidence)
                 incidents = list(self._pending_incidents.items())
-                events = list(self._pending_events.items())
-            # Evidence first: an incident's acknowledged snapshot has its evidence.
-            for evidence_id, event in evidence:
+                events = dict(self._pending_events)
+                dependencies = dict(self._pending_dependencies)
+
+            def write_evidence(evidence_id):
+                event = evidence[evidence_id]
                 self.evidence.update_one(
                     {"_id": evidence_id}, {"$setOnInsert": event}, upsert=True,
                 )
                 with self._lock:
                     self._pending_evidence.pop(evidence_id, None)
-            for change_id, change in events:
+                evidence.pop(evidence_id)
+
+            def write_event(change_id):
+                change = events[change_id]
                 self.events.update_one({"_id": change_id}, {"$setOnInsert": change}, upsert=True)
                 with self._lock:
                     self._pending_events.pop(change_id, None)
+                events.pop(change_id)
+
+            # Publish current state before draining older audit backlog. Each
+            # current snapshot still follows its own evidence + lifecycle event,
+            # preserving crash recovery and the human-approval durability gate.
             for incident_id, snapshot in incidents:
+                evidence_id, change_id = dependencies[incident_id]
+                if evidence_id in evidence:
+                    write_evidence(evidence_id)
+                if change_id in events:
+                    write_event(change_id)
                 # Existing v1 fields only; do not erase teammate-owned fields that
                 # may have been added independently to the stored document.
                 self.incidents.update_one(
@@ -102,6 +126,12 @@ class MongoIncidentStore:
                 with self._lock:
                     if self._pending_incidents.get(incident_id) is snapshot:
                         self._pending_incidents.pop(incident_id)
+                        self._pending_dependencies.pop(incident_id, None)
+            # Retain every historical observation; retries are idempotent.
+            for evidence_id in list(evidence):
+                write_evidence(evidence_id)
+            for change_id in list(events):
+                write_event(change_id)
             with self._lock:
                 self._last_error = None
             return True

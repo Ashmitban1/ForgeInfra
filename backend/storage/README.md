@@ -69,8 +69,16 @@ process already restarted, its unpersisted incidents cannot be recovered.
 - `incident_events`: complete incident snapshots for telemetry, investigation,
   result updates, resolution and reopening, with idempotent event identities.
   Use the shared `/api/incidents/{id}/updates` boundary for every lifecycle change.
-- Writes require majority acknowledgement. Evidence precedes incident writes;
-  the collections are not one transaction. Retry reconciles partial completion.
+- Writes require majority acknowledgement. Each latest incident snapshot follows
+  its own evidence and lifecycle writes, before older audit backlog is drained;
+  older history cannot monopolize the short flush budget ahead of current state.
+  The collections are not one transaction. Retry reconciles partial completion.
+- Every accepted reading updates an existing OPEN incident, including fault
+  clearing/recurrence. The gateway submits roughly every two seconds; a retry
+  worker also runs every two seconds. The frontend polls the API every three
+  seconds; it reads the backend's live state rather than querying Mongo directly.
+  Operational status remains OPEN until an explicit resolution; check
+  `hardware.cooling_fault` and `expected_status` for current sensor state.
 - Startup restores incidents including their saved AI/integration fields. The
   next numeric ID is above the highest saved `INC-COOLING-NNN`; last problematic
   event sequences are restored per device/source.
@@ -92,7 +100,11 @@ IDs; shared counters/coordination are separate work.
   than an empty history or reused IDs. No URI: explicit memory-only mode.
 - Runtime failure: alert and local incident still return. Snapshots remain in a
   memory retry queue; a worker retries every two seconds and ingestion also flushes.
-- Driver deadlines and a three-second flush budget bound network waits. No Mongo
+- Startup incident and lifecycle restoration each have a 60-second total deadline
+  and request batches of 100 documents, so growing history does not use the short
+  operational-write deadline. An incomplete restore still fails startup; no
+  history is discarded or silently skipped.
+- Driver deadlines and a three-second flush budget bound operational network waits. No Mongo
   IO occurs under the telemetry lock.
 - POST header `X-FactoryOS-Persistence`: `persisted` = incident writes acknowledged
   and queues drained; `pending` = durability unconfirmed; `disabled` = memory mode;

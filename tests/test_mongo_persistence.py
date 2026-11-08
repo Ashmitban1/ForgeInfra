@@ -1,4 +1,5 @@
 from copy import deepcopy
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from unittest.mock import Mock
 
@@ -10,6 +11,53 @@ from pymongo.errors import ConnectionFailure
 from backend import main
 from backend.storage import mongo
 from backend.storage.import_incidents import import_incidents
+
+
+@pytest.mark.parametrize("method,collection", [("load_incidents", "incidents"), ("load_events", "events")])
+def test_restore_keeps_cursor_batches_inside_startup_deadline(method, collection, monkeypatch):
+    store = mongo.MongoIncidentStore(mongomock.MongoClient(), "restore")
+    active = []
+
+    @contextmanager
+    def deadline(seconds):
+        assert seconds == 60
+        active.append(True)
+        try:
+            yield
+        finally:
+            active.pop()
+
+    class Cursor:
+        def batch_size(self, size):
+            assert size == 100
+            return self
+
+        def __iter__(self):
+            assert active, "Cursor must be fully consumed within the restore deadline"
+            yield {"incident_id": "RESTORED"}
+            assert active
+            yield {"incident_id": "RESTORED-SECOND-BATCH"}
+
+    monkeypatch.setattr(mongo, "timeout", deadline)
+    monkeypatch.setattr(getattr(store, collection), "find", Mock(return_value=Cursor()))
+    assert len(getattr(store, method)()) == 2
+    assert not active
+
+
+def test_partial_history_read_failure_never_returns_partial_restore(monkeypatch):
+    store = mongo.MongoIncidentStore(mongomock.MongoClient(), "restore")
+
+    class Cursor:
+        def batch_size(self, size):
+            return self
+
+        def __iter__(self):
+            yield {"incident_id": "PARTIAL"}
+            raise ConnectionFailure("mongodb://secret:password@private-host")
+
+    monkeypatch.setattr(store.events, "find", Mock(return_value=Cursor()))
+    with pytest.raises(mongo.StorageUnavailable, match="^MongoDB lifecycle retrieval unavailable$"):
+        store.load_events()
 
 
 def event(device="TEST-MONGO", sequence=1):
@@ -73,6 +121,58 @@ def test_new_lifespan_restores_incidents_ids_schema_and_sequence(database, monke
         assert new.json()["incident_id"] == "INC-COOLING-002"
         assert database.incidents.count_documents({}) == 2
         assert api.get("/api/incidents/unknown").status_code == 404
+
+
+def test_arduino_fault_clear_recurrence_updates_same_incident_and_api(database):
+    with TestClient(main.app) as api:
+        iid = None
+        for sequence, fault in enumerate((True, False, True), 1):
+            reading = {**event("RACK-HARDWARE-REGRESSION", sequence),
+                       "source_kind": "arduino_serial", "cooling_fault": fault}
+            response = api.post("/api/telemetry", json=reading)
+            assert response.status_code == 200
+            iid = iid or response.json()["incident_id"]
+            assert response.json()["incident_id"] == iid
+            assert response.headers["x-factoryos-persistence"] == "persisted"
+            for snapshot in (api.get(f"/api/incidents/{iid}").json(),
+                             api.get("/api/incidents").json()["incidents"][0],
+                             database.incidents.find_one({"_id": iid})):
+                assert snapshot["hardware"]["cooling_fault"] is fault
+                assert snapshot["hardware"]["sequence"] == sequence
+                assert snapshot["expected_status"] == ("WARNING" if fault else "NORMAL")
+                assert snapshot["status"] == "OPEN"
+        assert database.incidents.count_documents({}) == 1
+        assert database.incident_events.count_documents({}) == 3
+
+
+def test_latest_incident_does_not_wait_for_unrelated_older_history(database, monkeypatch):
+    with TestClient(main.app) as api:
+        iid = api.post("/api/telemetry", json=event()).json()["incident_id"]
+        store = main._store
+        for sequence in (2, 3):
+            snapshot = deepcopy(main._incidents[iid])
+            snapshot["hardware"]["sequence"] = sequence
+            snapshot["hardware"]["cooling_fault"] = sequence == 2
+            store.queue(snapshot)
+        update = store.events.update_one
+
+        def fail_old_event(query, change, **kwargs):
+            if change["$setOnInsert"]["snapshot"]["hardware"]["sequence"] == 2:
+                raise ConnectionFailure("Older audit write temporarily unavailable")
+            return update(query, change, **kwargs)
+
+        with monkeypatch.context() as failure:
+            failure.setattr(store.events, "update_one", fail_old_event)
+            assert not store.flush()
+            latest = database.incidents.find_one({"_id": iid})
+            assert latest["hardware"]["sequence"] == 3
+            assert latest["hardware"]["cooling_fault"] is False
+            assert database.incident_events.find_one({"snapshot.hardware.sequence": 3})
+            assert store.health()["pending_incidents"] == 0
+            assert store.health()["pending_events"] == 1
+        assert store.flush()
+        assert database.incident_events.count_documents({}) == 3
+        assert store.health()["status"] == "OK"
 
 
 def test_outage_keeps_alerts_and_retries_without_duplicates(database, monkeypatch):
