@@ -19,3 +19,4 @@ artifacts/modernization/
 .DS_Store
 .vscode/
 .idea/
+.factoryos-incidents-backup.json
