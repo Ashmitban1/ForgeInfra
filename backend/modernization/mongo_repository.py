@@ -21,6 +21,7 @@ class MongoIncidentRepository:
         self.summarizer = summarizer
         self.client = None
         self._investigations = None
+        self._reviews = None
         jobs.create_index("job_id", unique=True)
         jobs.create_index([("incident_identity", 1), ("request_key", 1)], unique=True)
         jobs.create_index("incident_identity", unique=True, name=f"one_active_{field}",
@@ -30,13 +31,25 @@ class MongoIncidentRepository:
         from backend.agents.schemas import investigation_summary
         if self._investigations is None:
             collection = os.environ.get("MONGODB_INVESTIGATION_JOBS_COLLECTION", "investigation_jobs")
-            if collection == self.jobs.name:
+            if collection in {self.jobs.name, os.environ.get("MONGODB_REVIEW_JOBS_COLLECTION", "review_jobs")}:
                 raise ValueError("Investigation and repair jobs require separate collections")
             self._investigations = MongoIncidentRepository(
                 self.incidents, self.jobs.database[collection],
                 field="investigation", summarizer=investigation_summary,
             )
         return self._investigations
+
+    def for_reviews(self):
+        from backend.agents.review_schemas import decision_review_summary
+        if self._reviews is None:
+            collection = os.environ.get("MONGODB_REVIEW_JOBS_COLLECTION", "review_jobs")
+            if collection in {self.jobs.name, os.environ.get("MONGODB_INVESTIGATION_JOBS_COLLECTION", "investigation_jobs")}:
+                raise ValueError("Review, investigation, and repair jobs require separate collections")
+            self._reviews = MongoIncidentRepository(
+                self.incidents, self.jobs.database[collection],
+                field="decision_review", summarizer=decision_review_summary,
+            )
+        return self._reviews
 
     @classmethod
     def from_environment(cls):
@@ -111,11 +124,19 @@ class MongoIncidentRepository:
             previous = self.get_job(previous_id)
             if previous and previous["created_at"] > job["created_at"]:
                 return False
+        summary = self.summarizer(job)
+        query = {"_id": current["_id"], "created_at": current["created_at"],
+                 self.field: current[self.field] if self.field in current else {"$exists": False}}
+        if self.field == "decision_review":
+            from backend.agents.review_schemas import MATERIAL_FIELDS, review_job_view
+            summary = self.summarizer(review_job_view(current, job))
+            # A concurrent telemetry/investigation update must not make an old
+            # recommendation look current between our read and atomic write.
+            for key in (*MATERIAL_FIELDS, "investigation"):
+                query[key] = current[key] if key in current else {"$exists": False}
         result = self.incidents.update_one(
-            {"_id": current["_id"], "created_at": current["created_at"],
-             self.field: current[self.field]} if self.field in current else
-            {"_id": current["_id"], "created_at": current["created_at"], self.field: {"$exists": False}},
-            {"$set": {self.field: self.summarizer(job)}},
+            query,
+            {"$set": {self.field: summary}},
         )
         return result.matched_count == 1
 

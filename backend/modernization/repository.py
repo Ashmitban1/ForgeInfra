@@ -73,6 +73,7 @@ class MemoryIncidentRepository:
         self.summarizer = summarizer
         self.jobs: dict[str, dict] = {}
         self._investigations = None
+        self._reviews = None
 
     def for_investigations(self):
         from backend.agents.schemas import investigation_summary
@@ -81,6 +82,14 @@ class MemoryIncidentRepository:
                 self.incidents, self.lock, field="investigation", summarizer=investigation_summary,
             )
         return self._investigations
+
+    def for_reviews(self):
+        from backend.agents.review_schemas import decision_review_summary
+        if self._reviews is None:
+            self._reviews = MemoryIncidentRepository(
+                self.incidents, self.lock, field="decision_review", summarizer=decision_review_summary,
+            )
+        return self._reviews
 
     def get_incident_snapshot(self, incident_id: str) -> dict:
         with self.lock:
@@ -131,7 +140,11 @@ class MemoryIncidentRepository:
                 previous = self.jobs.get(current["job_id"])
                 if previous and previous["created_at"] > job["created_at"]:
                     return False
-            incident[self.field] = self.summarizer(job)
+            if self.field == "decision_review":
+                from backend.agents.review_schemas import review_job_view
+                incident[self.field] = self.summarizer(review_job_view(incident, job))
+            else:
+                incident[self.field] = self.summarizer(job)
             return True
 
     def interrupt_incomplete(self) -> list[dict]:

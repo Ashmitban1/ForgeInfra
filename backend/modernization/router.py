@@ -29,7 +29,7 @@ def public_job(job: dict) -> dict:
     return view
 
 
-def create_modernization_router(service: RepairService, investigation_service=None) -> APIRouter:
+def create_modernization_router(service: RepairService, investigation_service=None, review_service=None) -> APIRouter:
     @asynccontextmanager
     async def lifespan(app):
         service.start()
@@ -52,6 +52,7 @@ def create_modernization_router(service: RepairService, investigation_service=No
     @router.get("/api/modernization/capabilities")
     def capabilities():
         return {"repair": True, "analysis": True, "investigate": investigation_service is not None,
+                "review": review_service is not None,
                 "storage_backend": service.repository.backend, "worker": "single_process_background",
                 "proposal_origin": "manually_authored_demo_patch", "approval": False, "deploy": False}
 
@@ -82,6 +83,7 @@ def create_modernization_router(service: RepairService, investigation_service=No
         try:
             snapshot = service.repository.get_incident_snapshot(incident_id)
             job = service.repository.latest_job(incident_identity(snapshot))
+            review = review_service.current_summary(snapshot) if review_service else snapshot.get("decision_review")
         except IncidentMissing:
             raise HTTPException(404, "Incident not found") from None
         except (KeyError, TypeError, ValueError):
@@ -90,7 +92,7 @@ def create_modernization_router(service: RepairService, investigation_service=No
             raise HTTPException(503, "The incident/job store is unavailable") from None
         return {
             "schema_version": "1.0", "incident_id": incident_id,
-            "investigation": snapshot.get("investigation"), "decision_review": snapshot.get("decision_review"),
+            "investigation": snapshot.get("investigation"), "decision_review": review,
             "repair": public_job(job) if job else None, "storage_backend": service.repository.backend,
         }
 

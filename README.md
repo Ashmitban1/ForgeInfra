@@ -6,7 +6,7 @@ GitHub-ready **three-person team repository**. FactoryOS is a proof-of-concept f
 
 ✅ FastAPI telemetry API, deterministic mismatch checks, simple in-memory incidents, basic tests; ✅ Arduino UNO sketch + serial gateway + simulator; ✅ minimal React/Vite dashboard reading backend data; ✅ GitHub Actions Python test workflow.
 
-**Not yet implemented or verified on this branch:** physical Arduino connection; Gemini; Jira/Slack; GitHub PR automation; Tiger Data/Atlas writer integration; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software. MongoDB repository adapters have been tested locally.
+**Not yet implemented or verified on this branch:** physical Arduino connection; Jira/Slack; GitHub PR automation; Tiger Data/Atlas writer integration; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software. MongoDB repository adapters have been tested locally.
 
 **Person 2's runnable baseline:** `fixtures/legacy_monitor/monitor.py` is a
 standalone, team-authored temperature-only monitor with JSON samples, an execution
@@ -32,9 +32,16 @@ shared Atlas app; the local wrapper still uses P1's memory store. See the
 investigations, validated diagnostic tools, and constrained model-generated rule
 candidates with actual Docker verification. Set `NVIDIA_API_KEY` in an ignored
 dotenv file or backend environment, submit an incident, and POST its `/investigate`
-route. An initial live Ultra run exercised model/tool execution and Docker verification;
-the subsequent per-finding citation check is locally tested. Gemini and authorized
-activation remain pending. See [the agent guide](backend/agents/README.md).
+route. A live Swagger run exercised the Ultra model, grounded source citations,
+real tool execution, generated patch, Docker verification, and downstream Gemini review. Authorized activation
+remains pending. See [the agent guide](backend/agents/README.md).
+
+**Person 2 step 6:** Set `GEMINI_API_KEY` and POST the incident's `/review` route
+after its Nemotron investigation completes. Gemini independently reviews the
+captured evidence, source, diff, tests, and replay. Validated recommendations and
+deterministic policy results appear in the shared incident's `decision_review`
+and `/analysis`. Review jobs use a separate memory/MongoDB namespace. Human
+approval remains PENDING. See [the Gemini review guide](backend/agents/GEMINI_REVIEW.md).
 
 ## Folders
 ```text
@@ -49,7 +56,7 @@ FactoryOS/
 │   ├── reliability.py          # P1: checks + temporary legacy stub
 │   ├── schemas/incident.py     # Shared Pydantic input schema
 │   ├── storage/                # P1: database work pending
-│   ├── agents/                 # P2: Nemotron investigation, tools, grounded results
+│   ├── agents/                 # P2: Nemotron tools and independent Gemini review
 │   ├── modernization/          # P2: fixture adapter, candidate patch, Docker tests
 │   └── integrations/           # P3: Jira, Slack, Solana pending
 ├── hardware/

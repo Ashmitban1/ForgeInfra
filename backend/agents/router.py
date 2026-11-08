@@ -28,7 +28,7 @@ def public_investigation(job: dict) -> dict:
     return result
 
 
-def create_investigation_router(service) -> APIRouter:
+def create_investigation_router(service, review_service=None) -> APIRouter:
     @asynccontextmanager
     async def lifespan(app):
         service.start()
@@ -46,8 +46,18 @@ def create_investigation_router(service) -> APIRouter:
             configured, model = True, config.model
         except NemotronError:
             configured, model = False, None
+        gemini_configured, gemini_model = False, None
+        if review_service is not None:
+            from backend.agents.gemini import GeminiError
+            try:
+                gemini_config = review_service.config_factory()
+                gemini_configured, gemini_model = True, gemini_config.model
+            except GeminiError:
+                pass
         return {"investigate": True, "configured": configured, "model": model,
-                "storage_backend": service.repository.backend, "gemini": False,
+                "storage_backend": service.repository.backend, "gemini": review_service is not None,
+                "review": review_service is not None, "gemini_configured": gemini_configured,
+                "gemini_model": gemini_model,
                 "automatic_deploy": False, "approval": False}
 
     @router.post("/api/incidents/{incident_id}/investigate", status_code=202, responses={

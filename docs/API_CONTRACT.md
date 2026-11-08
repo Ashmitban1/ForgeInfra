@@ -1,6 +1,6 @@
 # FactoryOS API contract (v1)
 
-Base: `http://127.0.0.1:8000`. Owner P1: `GET /health`, `POST /api/telemetry`, `GET /api/telemetry/latest`, `GET /api/incidents`, `GET /api/incidents/{incident_id}` (implemented, in-memory). P2 implemented via `backend.modernization.app:app`: `POST /api/incidents/{id}/investigate`, `GET /api/incidents/{id}/analysis`, `POST /api/incidents/{id}/repair`, investigation job/patch and repair job/report/diff reads. P3 notification/approval routes are not registered on this branch. See [the modernization API](MODERNIZATION_API.md) and [Nemotron agent guide](../backend/agents/README.md).
+Base: `http://127.0.0.1:8000`. Owner P1: `GET /health`, `POST /api/telemetry`, `GET /api/telemetry/latest`, `GET /api/incidents`, `GET /api/incidents/{incident_id}` (implemented, in-memory). P2 implemented via `backend.modernization.app:app`: incident `/investigate`, `/review`, `/analysis`, `/repair`; investigation/review job reads; investigation patch and repair report/diff reads. P3 notification/approval routes are not registered on this branch. See [the modernization API](MODERNIZATION_API.md), [Nemotron guide](../backend/agents/README.md), and [Gemini guide](../backend/agents/GEMINI_REVIEW.md).
 
 ## Input: POST /api/telemetry
 ```json
@@ -63,3 +63,35 @@ valid source references. Tool SUCCESS is distinct from passing tests. A candidat
 actually authored through the model tool has `proposal_origin=nemotron_generated_patch`
 and its own explicit test verification. The existing `/repair` route stays manual.
 Neither route approves, deploys, changes live monitoring, or closes equipment faults.
+
+## Gemini independent review extension (Person 2, step 6)
+
+`POST /api/incidents/{id}/review` accepts no body and optional `Idempotency-Key`.
+It requires a completed current Nemotron investigation in this backend's job
+store. A new/active job returns 202; a reused terminal job returns 200. Missing
+incident: 404; missing/changed investigation or active review: 409; missing Gemini
+configuration/worker/storage: 503. Poll the returned `links.job`,
+`GET /api/reviews/{job_id}`, using the new **review-job** ID.
+
+`GET /api/agents/capabilities` adds `review`, `gemini`, `gemini_configured`, and
+`gemini_model`. The default model is `gemini-3.5-flash-lite`, configurable with
+`GEMINI_MODEL`; authentication uses backend-only `GEMINI_API_KEY`.
+
+`decision_review` gains actual model/job/trace IDs, review basis, explanation,
+risks, evidence IDs, repair assessment, provider metadata, safe errors, and policy.
+States: PENDING, RUNNING, COMPLETED, FAILED, INTERRUPTED, STALE. `/analysis`
+derives stale status when live telemetry or the investigation no longer matches.
+Its `recommendation` is the backend policy's effective recommendation;
+`model_recommendation` preserves the model's original choice. Job responses expose
+raw structured output in `result`, with `result.policy.effective_recommendation`.
+
+Allowed recommendations: ESCALATE, INVESTIGATE_SOFTWARE, REQUEST_REPAIR_REVIEW,
+COLLECT_MORE_EVIDENCE, NO_ACTION. Actions are advisory allowlisted strings. Missing
+or failed test/replay proof cannot qualify a repair; model output cannot suppress
+deterministic mismatch evidence or bypass human approval. Approval stays PENDING,
+`actions_executed=[]`, and `deployed=false`. Review does not send Jira/Slack
+messages, change operational incident status, or activate the monitor.
+
+Review jobs use a separate `review_jobs` MongoDB collection over the same canonical
+incidents, or a separate job dictionary over P1's same memory dict/lock. The local
+wrapper remains memory-backed. Atlas writer integration is still separate.

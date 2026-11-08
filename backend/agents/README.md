@@ -1,5 +1,8 @@
 # Person 2: real Nemotron investigation — step 5
 
+Step 6 adds [independent Gemini review](GEMINI_REVIEW.md) of this investigation's
+captured evidence. It uses separate `/review` and `/api/reviews/{job_id}` routes.
+
 ## Run
 
 Use Python 3.11 and a running local Docker daemon. From the repository root:
@@ -51,7 +54,7 @@ curl -X POST -H 'Idempotency-Key: investigation-demo-1' \
 | `GET /api/investigations/{job_id}` | Poll complete progress, actual tool traces, provider metadata, evidence manifest, final findings |
 | `GET /api/investigations/{job_id}/patch` | Plain-text model-generated diff once a final investigation result contains a candidate |
 | `GET /api/incidents/{id}/analysis` | Existing repair/AI view; investigation progress is attached to the same canonical incident |
-| `GET /api/agents/capabilities` | Route support, selected model/key configuration, storage backend; Gemini/approval/deploy remain false |
+| `GET /api/agents/capabilities` | Route support, NVIDIA configuration, Gemini review/configuration flags, storage backend; approval/deploy remain false |
 
 Check `configured` to distinguish installed routes from configured credentials.
 It is not a live-provider health claim. Missing/invalid configuration returns 503
@@ -196,18 +199,18 @@ It does not send Jira/Slack messages, activate a candidate, or populate a separa
 running dashboard backend's memory. API configuration errors/provider failures
 produce nonzero exit codes, not simulated success.
 
-An initial real NVIDIA run completed with the selected Ultra model:
-4 provider responses; 5 real tools (incident, source, requirements, original tests,
-candidate verification); grounded findings; generated candidate VERIFIED; original
-test exit 1; candidate exit 0; offline replay NORMAL -> WARNING. Approval remained
-PENDING and nothing was deployed. A subsequent guard now requires every finding
-with a source reference to cite inspected-code evidence directly; the initial
-live response does not satisfy that stricter per-finding rule. The guard passes
-local scripted-provider tests. A final live rerun was blocked by automatic approval
-review pending explicit permission to send the fixture, requirements, and simulated
-incident evidence to NVIDIA. This is observed prototype evidence, not a guarantee
-that credentials, quota, or the hosted endpoint remain available later.
+A full live Swagger test on November 8, 2026 completed with explicit approval for
+NVIDIA/Google evidence transfers. The selected Ultra model used 6 provider
+responses and 5 real tools (incident, source, requirements, original tests,
+candidate verification). Findings passed per-finding source citation validation;
+the generated candidate was VERIFIED; original tests were 4 passed/1 failed,
+candidate tests were 5 passed/0 failed, and replay changed NORMAL -> WARNING.
+The downstream real Gemini review also completed and appeared in `/analysis`.
+Approval remained PENDING and nothing was deployed. Duplicate review submission
+reused the same job with no second Google call. These are observed prototype
+results, not a guarantee of later provider availability. Local evidence is saved
+under ignored `artifacts/modernization/playwright-live-e2e-results.json`.
 
-Gemini review is step 6 and remains unimplemented. Existing deterministic alerting
-does not wait for either model. Shared authentication, Atlas writer integration,
+Gemini review is implemented separately in step 6; see [the review guide](GEMINI_REVIEW.md).
+Existing deterministic alerting does not wait for either model. Shared authentication, Atlas writer integration,
 frontend evidence binding, and authorized activation remain separate team work.
