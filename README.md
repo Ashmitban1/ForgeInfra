@@ -6,9 +6,7 @@ GitHub-ready **three-person team repository**. FactoryOS is a proof-of-concept f
 
 ✅ FastAPI telemetry API, deterministic mismatch checks, simple in-memory incidents, basic tests; ✅ Arduino UNO sketch + serial gateway + simulator; ✅ minimal React/Vite dashboard reading backend data; ✅ GitHub Actions Python test workflow.
 
-**User-verified:** physical Arduino-to-FastAPI ingestion and simulated fault detection.
-**Implemented:** optional MongoDB incident/evidence/lifecycle persistence and Tiger Data telemetry history/time-bucket summaries. Atlas Arduino incident persistence/restart is user-verified. Real Tiger host writes, history, SQL summaries and restart retrieval are independently verified; physical Arduino OFF/ON/OFF history in Tiger remains unverified. See `docs/STORAGE_INTEGRATION.md` for configuration and evidence boundaries.
-**Not yet implemented or verified in this checkout:** real legacy application modernization; Nemotron/Gemini; Jira/Slack; GitHub PR automation; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software.
+**Not yet implemented or verified:** physical Arduino connection; real legacy application modernization; Nemotron/Gemini; Jira/Slack; GitHub PR automation; Tiger Data/MongoDB; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software.
 
 ## Folders
 ```text
@@ -49,15 +47,8 @@ python -m uvicorn backend.main:app --reload
 ```
 Open http://127.0.0.1:8000/docs and http://127.0.0.1:8000/health. If PowerShell blocks activation, run `.\.venv\Scripts\python.exe` instead of `python`.
 
-**Terminal 2 — Simulated input and tests:**
-```powershell
-python hardware/simulator.py --mode normal
-python hardware/simulator.py --mode fault
-python -m pytest -q
-```
-On fault input the backend should detect `legacy_missed_fault` and `reliability.mismatch: true`.
 
-**Terminal 3 — Basic React dashboard:**
+**Terminal 2 — Basic React dashboard:**
 ```powershell
 cd frontend
 npm install
@@ -65,7 +56,7 @@ npm run dev
 ```
 Open http://127.0.0.1:5173. Requires Node.js 20+.
 
-## Connect your actual ELEGOO UNO R3
+## Terminal 3 - Connect your actual ELEGOO UNO R3
 
 1. Open `hardware/arduino/factoryos_arduino/factoryos_arduino.ino` in Arduino IDE.
 2. Install the Adafruit **DHT sensor library** and **Adafruit Unified Sensor**.
@@ -78,42 +69,8 @@ python hardware/serial_gateway.py --port COM3
 ```
 Replace `COM3` with your actual port. `cooling_fault` is a **switch-simulated** equipment failure, not a measurement of a real cooling system. No mains or real equipment controls.
 
-## Backend host metrics
-
-After installing `requirements.txt`, open `http://127.0.0.1:8000/api/system/metrics`
-for timestamped CPU and RAM measurements from the machine running FastAPI.
-The source includes its hostname and is separate from Arduino/rack telemetry.
-CPU sampling takes approximately 0.1 seconds per request. `OK` means both
-metrics were collected; `DEGRADED` retains one successful metric; `UNAVAILABLE`
-returns HTTP 503 with null metrics and safe error codes. This reports collection
-health, not whether CPU/RAM utilization is operationally safe. See
-`docs/API_CONTRACT.md` for field names and failure semantics.
-
-## MongoDB persistence
-
-Set backend-only `MONGODB_URI` and optional `MONGODB_DATABASE` in your environment
-or ignored `backend/.env` to persist incidents and immutable reliability evidence.
-No URI keeps memory mode. Configured startup restores saved incidents and IDs.
-Use `/api/storage/health` and the telemetry response's `X-FactoryOS-Persistence`
-header to check acknowledged versus pending writes. During an outage alerts keep
-working, but unacknowledged writes are queued only in memory. Use one backend
-worker per database. See [storage setup, migration and restart tests](backend/storage/README.md)
-before restarting a process that holds unsaved incidents.
-
-## Lifecycle results and Tiger Data history
-
-Use `POST /api/incidents/{id}/updates` for idempotent investigation, integration,
-and resolution records; inspect `/api/incidents/{id}/history` for saved snapshots.
-Set backend-only `TIGERDATA_DATABASE_URL` to a Tiger Cloud PostgreSQL connection
-URL to store accepted Arduino/simulator events plus periodic host CPU/RAM samples.
-Query `/api/telemetry/history` and `/api/telemetry/summary` with source filters.
-These are real database adapters; live cloud verification requires configured
-credentials. See [setup, API examples and teammate handoff](docs/STORAGE_INTEGRATION.md).
-
 ## Collaborate on GitHub
 
 See `docs/GITHUB_PUSH.md` for push commands and `docs/TEAM_TASKS.md` for assignments. See `docs/API_CONTRACT.md` before adding new API endpoints.
 
-The backend currently has **no authentication**. Incident storage is memory-only
-unless MongoDB is configured. Keep it local/isolated until protected. `.env` and
-credentials are ignored by Git.
+The backend currently has **no authentication** and uses **in-memory** storage. Keep it local/isolated until protected. `.env` and credentials are ignored by Git.
