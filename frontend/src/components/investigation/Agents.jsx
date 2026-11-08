@@ -3,7 +3,7 @@ import { classifyStatus, describeFinding, describeToolCall } from '../../lib/hea
 import { formatDateTime } from '../../lib/format.js';
 import { Badge, StateMessage } from '../ui.jsx';
 
-const TONE = { pending: 'muted', done: 'ok', failed: 'fault', active: 'info', unknown: 'review' };
+const TONE = { pending: 'muted', done: 'ok', failed: 'fault', active: 'info', review: 'review', unknown: 'review' };
 
 function RawJson({ value }) {
   return (
@@ -40,7 +40,7 @@ export function NemotronActivity({ investigation }) {
       {calls.length === 0 ? (
         <StateMessage title={pending ? 'Investigation has not run' : 'No tool calls recorded'}>
           {pending
-            ? 'Status is PENDING, so no Nemotron tool calls exist yet. The investigate route (proposed by Person 2) is not implemented in API v1.'
+            ? 'Investigation has not started. Use Run investigation to capture evidence and queue a job.'
             : 'The API reports a non-pending status but an empty tool_calls list.'}
         </StateMessage>
       ) : (
@@ -103,6 +103,15 @@ export function GeminiRecommendation({ review }) {
   return (
     <>
       <StatusLine label={`Reviewer ${r.reviewer ?? 'unknown'} · decision_review.status`} status={r.status} />
+      {r.stale && <p className="inline-error" role="alert">This review is stale. Collect current evidence and request a new investigation/review.</p>}
+      {r.policy && <>
+        <p>Effective recommendation: <strong>{r.policy.effective_recommendation || 'Unavailable'}</strong></p>
+        <p className="muted">Model recommendation: {r.model_recommendation || '—'}</p>
+        {r.policy.reasons?.length > 0 && <ul>{r.policy.reasons.map(reason => <li key={reason}><code>{reason}</code></li>)}</ul>}
+        <p>{r.fault_context?.statement || r.policy.fault_context?.statement}</p>
+      </>}
+      {r.explanation && <p>{r.explanation}</p>}
+      {r.risks?.length > 0 && <ul>{r.risks.map(risk => <li key={risk}>{risk}</li>)}</ul>}
       {rec === null || rec === undefined ? (
         <StateMessage title={pending ? 'No recommendation yet' : 'No recommendation recorded'}>
           {pending

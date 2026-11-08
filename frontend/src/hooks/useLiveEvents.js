@@ -25,7 +25,7 @@ export function useReadingPulses(devices) {
       const key = `${hw.source_kind}:${hw.sequence}:${hw.received_at}`;
       if (seen.current.get(d.device_id) === key) continue;
       seen.current.set(d.device_id, key);
-      if (baseline) continue;
+      if (baseline || d.historical) continue;
       fresh.push({
         id: ++counter.current,
         deviceId: d.device_id,

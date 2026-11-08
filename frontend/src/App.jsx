@@ -1,9 +1,10 @@
 import { MotionConfig } from 'motion/react';
-import { lazy, Suspense, useEffect, useRef } from 'react';
-import { getIncidents, getLatestTelemetry } from './api.js';
+import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
+import { getBackendStatus, getIncidents, getLatestTelemetry, getTelemetrySources } from './api.js';
 import Shell from './components/Shell.jsx';
 import { useNow, usePolling } from './hooks/usePolling.js';
-import { useTelemetryHistory } from './hooks/useTelemetryHistory.js';
+import { useIncidentHistory, useTelemetryHistory } from './hooks/useTelemetryHistory.js';
+import { rackSources } from './lib/history.js';
 import IncidentInvestigation from './pages/IncidentInvestigation.jsx';
 import MissionControl from './pages/MissionControl.jsx';
 import { useRoute } from './router.js';
@@ -17,7 +18,15 @@ function OperationalApp({ route }) {
   const now = useNow(1000);
   const telemetry = usePolling(getLatestTelemetry);
   const incidents = usePolling(getIncidents);
-  const history = useTelemetryHistory(telemetry.data);
+  const backend = usePolling(getBackendStatus, { intervalMs: 15000 });
+  const sources = usePolling(getTelemetrySources, { intervalMs: 15000 });
+  const knownDevices = useMemo(() => rackSources(telemetry.data || [], incidents.data || [], sources.data || []),
+    [telemetry.data, incidents.data, sources.data]);
+  const displayedTelemetry = { ...telemetry, data: telemetry.data || knownDevices.length ? knownDevices : null };
+  const historyState = useTelemetryHistory(telemetry.data, { incidents: incidents.data || [], sources: sources.data || [],
+    enabled: backend.data?.telemetryStorage?.status !== 'DISABLED' });
+  const history = historyState.history;
+  const lifecycle = useIncidentHistory(incidents.data || []);
 
   const updates = [telemetry.updatedAt, incidents.updatedAt].filter(Boolean);
   const polling = {
@@ -29,12 +38,13 @@ function OperationalApp({ route }) {
   };
 
   return (
-    <Shell route={contextRoute} polling={polling}>
-        <WorkspaceContext route={contextRoute} incidents={incidents} />
+    <Shell route={contextRoute} polling={polling} backend={backend.data}>
+        {(historyState.error || lifecycle.error || sources.error) && <p className="inline-error" role="alert">Some persisted history could not be loaded: {(historyState.error || lifecycle.error || sources.error).message}</p>}
+        <WorkspaceContext route={contextRoute} incidents={incidents} backend={backend.data} />
         {['investigate', 'engineering'].includes(route.name) ? (
-          <IncidentInvestigation key={contextRoute.incidentId ?? 'none'} workspace={route.name} incidentId={contextRoute.incidentId} incidents={incidents} telemetry={telemetry} history={history} now={now} />
+          <IncidentInvestigation key={contextRoute.incidentId ?? 'none'} workspace={route.name} incidentId={contextRoute.incidentId} incidents={incidents} telemetry={displayedTelemetry} history={history} now={now} backend={backend.data} />
         ) : (
-          <MissionControl telemetry={telemetry} incidents={incidents} history={history} now={now} />
+          <MissionControl telemetry={displayedTelemetry} incidents={incidents} history={history} now={now} backend={backend.data} persistedEvents={lifecycle.events} />
         )}
       </Shell>
   );

@@ -8,6 +8,7 @@ const STATE_VIEW = {
   failed: { icon: '✕', text: 'Failed', tone: 'fault' },
   unavailable: { icon: '–', text: 'Not available', tone: 'muted' },
   unknown: { icon: '?', text: 'Unrecognized status', tone: 'review' },
+  review: { icon: '◆', text: 'Needs review', tone: 'review' },
 };
 
 function Step({ step, index, previous, advanced, reduce }) {

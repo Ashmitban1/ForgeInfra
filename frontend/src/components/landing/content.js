@@ -7,7 +7,7 @@ export const phases = [
     output: '29.4°C · 54% RH · cooling_fault=true',
     technology: 'Arduino Uno · DHT11 · Python · FastAPI',
     status: 'Implemented locally',
-    note: 'Sensor and gateway code exists. The cooling-fault switch is deliberately simulated; FactoryOS does not control cooling equipment. Host CPU/RAM via psutil is a separate planned feed in this checkout.',
+    note: 'Sensor and gateway code exists. The cooling-fault switch is deliberately simulated; FactoryOS does not control cooling equipment. Host CPU/RAM via psutil is available as a separately labelled backend-host feed.',
     tools: [
       ['Arduino', 'Sensor firmware; verify physical hardware separately.'],
       ['DHT11', 'Temperature/humidity sensor; cooling fault is simulated.'],
@@ -21,9 +21,9 @@ export const phases = [
     output: 'legacy_missed_fault → incident',
     technology: 'Python · reliability rules · FastAPI',
     status: 'Implemented locally',
-    note: 'Detection is independent of AI availability. Live ingestion currently uses the team-authored placeholder legacy function, not Northmark software. MongoDB Atlas is planned in this checkout; canonical incidents currently live in memory.',
+    note: 'Detection is independent of AI availability. Live ingestion executes the team-authored representative legacy monitor, not Northmark software. Canonical incidents can persist to MongoDB; configured Tiger Data stores telemetry history.',
     tools: [
-      ['Python', 'Team-authored legacy placeholder; not Northmark code.'],
+      ['Python', 'Executed team-authored legacy fixture; not Northmark code.'],
       ['Reliability Engine', 'Independent deterministic mismatch detection.'],
     ],
   },
@@ -33,11 +33,11 @@ export const phases = [
     processing: 'Inspect code; independently review',
     output: 'Example: cooling_fault ignored',
     technology: 'NVIDIA Nemotron · Gemini · tool registry',
-    status: 'Awaiting integration',
-    note: 'Agent modules are stubs in this checkout. The example is an explanation of the intended investigation, not a model response or successful tool call. Humans retain operational decisions.',
+    status: 'Connected through backend APIs',
+    note: 'Nemotron investigates captured evidence through validated tools; Gemini independently reviews findings, candidate tests, and replay. Outputs come from explicit background jobs. Humans retain operational decisions.',
     tools: [
-      ['NVIDIA Nemotron', 'Planned tool-based source inspection.'],
-      ['Gemini', 'Planned independent evidence review.'],
+      ['NVIDIA Nemotron', 'Tool-based source inspection and constrained candidate generation.'],
+      ['Gemini', 'Independent evidence and policy review.'],
     ],
   },
   {
@@ -46,11 +46,11 @@ export const phases = [
     processing: 'Run regression tests + replay',
     output: 'Example: NORMAL → WARNING',
     technology: 'Docker · pytest · source diff · snapshot replay',
-    status: 'Awaiting integration',
-    note: 'The handoff describes a manually authored repair example, not an AI-generated fix. This checkout has no connected repair endpoint or per-incident Docker results. No pass totals are presented as verified. A completed job is not proof of passing tests; passing tests are not approval, deployment, or equipment recovery.',
+    status: 'Connected through backend APIs',
+    note: 'Generated candidates expose source hashes, actual before/after acceptance outcomes, and offline replay. A separate manually authored demo verifier also exists. Completed jobs do not imply passing tests, approval, deployment, or equipment recovery.',
     tools: [
-      ['Docker', 'Planned isolated candidate verification.'],
-      ['pytest', 'Tests exist; connected per-incident outcomes unavailable.'],
+      ['Docker', 'Isolated candidate verification.'],
+      ['pytest', 'Per-incident acceptance outcomes and replay evidence.'],
     ],
   },
   {
@@ -60,7 +60,7 @@ export const phases = [
     output: 'Ticket + message; incident stays open',
     technology: 'Jira · Slack · FactoryOS · shared data layer',
     status: 'Notifications implemented',
-    note: 'Jira creation and generic Slack connectivity were live-verified separately. The combined adapter is implemented and mocked-tested; a fresh combined live delivery remains unverified. Notifications can run immediately after detection, without waiting for agents or repair. Approval, Solana and deployment are not implemented.',
+    note: 'Jira creation and generic Slack connectivity were live-verified separately. The combined adapter is implemented and mocked-tested; a fresh combined live delivery remains unverified. Notifications can run immediately after detection, without waiting for agents or repair. Authenticated human approval is implemented. Solana and deployment remain pending.',
     tools: [
       ['Jira', 'Real Jira Task creation implemented.'],
       ['Slack', 'Real Slack adapter implemented; state requires provider confirmation.'],

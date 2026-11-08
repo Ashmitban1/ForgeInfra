@@ -20,7 +20,7 @@ From the repository root, use Python 3.11 and a virtual environment:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-python -m uvicorn backend.main:app --reload
+python -m uvicorn backend.app:app --reload
 ```
 
 In another terminal, `python hardware/simulator.py --mode fault` submits a simulated cooling fault; `--mode normal` submits healthy telemetry. Run `python -m pytest -q` for backend tests.
@@ -33,7 +33,7 @@ Use four-space Python indentation, `snake_case` functions/modules, `PascalCase` 
 
 ## Testing Guidelines
 
-Use pytest and FastAPI `TestClient`; name files `test_*.py` and functions `test_*`. Use distinct device IDs because API tests share in-memory state. Cover changed reliability behavior, invalid input, and regressions. Modernization work must demonstrate failure before repair and passing regression/baseline tests afterward. No coverage threshold or frontend test runner is configured.
+Use pytest and FastAPI `TestClient`; name files `test_*.py` and functions `test_*`. Use distinct device IDs because API tests share in-memory state. Cover changed reliability behavior, invalid input, and regressions. Modernization work must demonstrate failure before repair and passing regression/baseline tests afterward. No coverage threshold is configured. Frontend client/history/status tests use Node’s built-in runner: `npm --prefix frontend test`. The isolated UI acceptance server and Playwright workflow are documented in `docs/FRONTEND_BACKEND_INTEGRATION_GUIDE.md`.
 
 ## Commit & Pull Request Guidelines
 

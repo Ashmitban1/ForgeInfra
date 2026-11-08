@@ -25,13 +25,14 @@ export default function TelemetryPanel({ device, readings }) {
         </div>
       </div>
       <dl className="facts">
+        {device.historical && <Fact label="Reading state">Last stored observation; no fresh sample received since this backend started.</Fact>}
         <Fact label="Device" mono>{device.device_id}</Fact>
         <Fact label="Source kind" mono>{hw.source_kind ?? '—'}</Fact>
         <Fact label="Sequence" mono>{hw.sequence ?? '—'}</Fact>
         <Fact label="Observed at">{formatDateTime(hw.observed_at)}</Fact>
         <Fact label="Received at">{formatDateTime(hw.received_at)}</Fact>
       </dl>
-      <h3 className="subhead">Temperature observed in this tab</h3>
+      <h3 className="subhead">Stored and current temperature observations</h3>
       <Sparkline readings={readings} />
     </div>
   );

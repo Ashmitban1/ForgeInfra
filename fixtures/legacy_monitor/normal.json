@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "device_id": "RACK-01",
+  "source_kind": "simulator",
+  "observed_at": "2026-11-07T20:00:00Z",
+  "sequence": 1,
+  "temperature_c": 29.4,
+  "humidity_pct": 54,
+  "cooling_fault": false,
+  "fault_is_simulated": true
+}

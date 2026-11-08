@@ -9,10 +9,10 @@ function connectionState({ loading, error, updatedAt }, demo) {
   if (loading) return { tone: 'muted', label: 'Connecting…' };
   if (error && !updatedAt) return { tone: 'fault', label: 'Backend unreachable' };
   if (error) return { tone: 'review', label: 'Connection lost — showing last data' };
-  return { tone: 'ok', label: 'Live' };
+  return { tone: 'ok', label: 'API connected' };
 }
 
-export default function Shell({ route, polling, children }) {
+export default function Shell({ route, polling, children, backend }) {
   const demo = isDemoMode();
   const conn = connectionState(polling, demo);
   const nav = [
@@ -39,7 +39,7 @@ export default function Shell({ route, polling, children }) {
             {conn.label}
           </span>
           <span className="conn-meta">
-            {polling.updatedAt ? `Updated ${formatTime(new Date(polling.updatedAt).toISOString())}` : 'No data yet'}
+            {polling.updatedAt ? `API checked ${formatTime(new Date(polling.updatedAt).toISOString())}` : 'No data yet'}
           </span>
           <button type="button" className="btn" onClick={() => setDemoMode(!demo)} aria-pressed={demo}>
             Demo data: {demo ? 'on' : 'off'}
@@ -57,8 +57,11 @@ export default function Shell({ route, polling, children }) {
       )}
       <main id="main" tabIndex={-1}>{children}</main>
       <footer className="footer">
-        API: <span className="mono">{demo ? 'not used (demo mode)' : API_BASE}</span> · Volatile in-memory backend, local use only. Data marked
-        “Sample” is layout scaffolding, not output from the API.
+        API: <span className="mono">{demo ? 'not used (demo mode)' : API_BASE}</span>
+        {!demo && <> · Incidents: {backend?.storage?.backend || 'checking'} / {backend?.storage?.unavailable ? 'UNAVAILABLE' : backend?.storage?.status || 'checking'}
+          {' · '}Telemetry: Tiger Data / {backend?.telemetryStorage?.unavailable ? 'UNAVAILABLE' : backend?.telemetryStorage?.status || 'checking'}
+          {' · '}Pending writes: {(backend?.storage?.pending_incidents || 0) + (backend?.storage?.pending_evidence || 0) + (backend?.storage?.pending_events || 0) + (backend?.telemetryStorage?.pending_samples || 0)}</>}
+        {' · '}Local prototype. Observation freshness is shown separately from API availability.
       </footer>
     </div>
   );
