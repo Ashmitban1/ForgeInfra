@@ -7,6 +7,8 @@
 #define DHT_PIN 2
 #define DHT_TYPE DHT11
 #define TILT_PIN 3
+#define GREEN_LED 8
+#define RED_LED 9
 
 DHT dht(DHT_PIN, DHT_TYPE);
 
@@ -14,6 +16,8 @@ void setup() {
   Serial.begin(9600);
   pinMode(TILT_PIN, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(RED_LED, OUTPUT);
   dht.begin();
 }
 
@@ -26,6 +30,8 @@ void loop() {
   }
   // Switch CLOSED to GND => simulated cooling fault.
   bool coolingFault = digitalRead(TILT_PIN) == LOW;
+  digitalWrite(GREEN_LED, coolingFault ? LOW : HIGH);
+  digitalWrite(RED_LED, coolingFault ? HIGH : LOW);
   digitalWrite(LED_BUILTIN, coolingFault ? HIGH : LOW);
   Serial.print("{\"temperature_c\":");
   Serial.print(temp, 1);
