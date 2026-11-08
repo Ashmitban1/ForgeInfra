@@ -21,7 +21,7 @@ export async function request(path, { method = 'GET', body, signal, headers = {}
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
   } catch (error) {
     if (error?.name === 'AbortError') throw error;
-    throw new ApiError('Cannot reach the FactoryOS API at ' + API_BASE + '.', { kind: 'network' });
+    throw new ApiError('Cannot reach the ForgeInfra API at ' + API_BASE + '.', { kind: 'network' });
   }
   if (!response.ok) {
     let detail;
@@ -73,6 +73,11 @@ export const getRepairDiff = (id, signal) => request(jobPath('repairs', id) + '/
 export const getApproval = (id, options = {}) => request(incidentPath(id) + '/approval', options);
 export const getApprovalHistory = (id, options = {}) => request(incidentPath(id) + '/approval/history', options);
 export const decideApproval = (id, body, options = {}) => request(incidentPath(id) + '/approval', { ...options, method: 'POST', body });
+export const getRepairProofReadiness = (id, options = {}) => request(incidentPath(id) + '/repair-proofs', options);
+export const publishRepairProof = (id, body, options = {}) => request(incidentPath(id) + '/repair-proofs', { ...options, method: 'POST', body });
+export const verifyRepairProof = (id, options = {}) => request(jobPath('repair-proofs', id) + '/verify', options);
+export const getRepairProofBundle = (id, options = {}) => request(jobPath('repair-proofs', id) + '/bundle', options);
+export const reconcileRepairProof = (id, options = {}) => request(jobPath('repair-proofs', id) + '/reconcile', { ...options, method: 'POST' });
 export const updateIncident = (id, body, options = {}) => request(incidentPath(id) + '/updates', { ...options, method: 'POST', body });
 export async function notifyIncident(id) {
   const result = await request(incidentPath(id) + '/notify', { method: 'POST' });

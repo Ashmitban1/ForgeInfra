@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getIncident, getIncidentHistory } from '../api.js';
 import EventTimeline, { buildEvents } from '../components/EventTimeline.jsx';
 import IncidentList, { sortIncidents } from '../components/IncidentList.jsx';
@@ -9,6 +9,7 @@ import { IntegrationResults } from '../components/investigation/Scaffolds.jsx';
 import JiraAction from '../components/investigation/JiraAction.jsx';
 import WorkflowControls from '../components/investigation/WorkflowControls.jsx';
 import HumanApproval from '../components/investigation/HumanApproval.jsx';
+import RepairProof from '../components/investigation/RepairProof.jsx';
 import { CandidateDiff, CandidateTests } from '../components/investigation/CandidateEvidence.jsx';
 import { Badge, Fact, Panel, SkeletonRows, StateMessage } from '../components/ui.jsx';
 import { usePolling } from '../hooks/usePolling.js';
@@ -19,6 +20,7 @@ import { deviceHealth, pathSteps, repairVerification } from '../lib/health.js';
 import { missionHref, replaceHash, workspaceHref } from '../router.js';
 
 function IncidentContent({ incident, refresh, telemetry, history, now, backend, lifecycle }) {
+  const [reviewerToken, setReviewerToken] = useState('');
   const workflow = useIncidentWorkflow(incident, refresh);
   const analysis = workflow.analysis.data;
   const steps = useMemo(() => pathSteps(incident, analysis), [incident, analysis]);
@@ -49,7 +51,8 @@ function IncidentContent({ incident, refresh, telemetry, history, now, backend, 
     </div><div className="col">
       <Panel title="Repair verification" eyebrow="Software evidence" headingId="verify-h"><RepairVerification verification={verification} deviceId={incident.device_id} /></Panel>
       <Panel title="Regression tests" eyebrow="Actual acceptance results" headingId="tests-h"><CandidateTests candidate={workflow.candidate} /></Panel>
-      <Panel title="Approval" eyebrow="Human decision" headingId="appr-h"><HumanApproval incidentId={incident.incident_id} summary={analysis?.approval} configured={backend?.agents?.approval_configured} onChanged={workflow.refresh} candidateRevision={workflow.candidate?.candidate_revision} investigationJobId={workflow.sourceId} /></Panel>
+      <Panel title="Approval" eyebrow="Human decision" headingId="appr-h"><HumanApproval incidentId={incident.incident_id} summary={analysis?.approval} configured={backend?.agents?.approval_configured} onChanged={workflow.refresh} candidateRevision={workflow.candidate?.candidate_revision} investigationJobId={workflow.sourceId} onSessionChange={setReviewerToken} /></Panel>
+      <Panel title="Solana RepairProof" eyebrow="Approved evidence · Devnet" headingId="proof-h"><RepairProof incidentId={incident.incident_id} token={reviewerToken} approvalVersion={analysis?.approval?.version} /></Panel>
       <Panel title="Jira / Slack results" eyebrow="Notifications" headingId="integ-h"><JiraAction incident={incident} onCreated={refresh} capabilities={backend?.integrations} /><IntegrationResults integrations={incident.integrations} /></Panel>
     </div></div>
   </div>;

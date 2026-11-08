@@ -7,7 +7,7 @@ export const phases = [
     output: '29.4°C · 54% RH · cooling_fault=true',
     technology: 'Arduino Uno · DHT11 · Python · FastAPI',
     status: 'Implemented locally',
-    note: 'Sensor and gateway code exists. The cooling-fault switch is deliberately simulated; FactoryOS does not control cooling equipment. Host CPU/RAM via psutil is available as a separately labelled backend-host feed.',
+    note: 'Sensor and gateway code exists. The cooling-fault switch is deliberately simulated; ForgeInfra does not control cooling equipment. Host CPU/RAM via psutil is available as a separately labelled backend-host feed.',
     tools: [
       ['Arduino', 'Sensor firmware; verify physical hardware separately.'],
       ['DHT11', 'Temperature/humidity sensor; cooling fault is simulated.'],
@@ -58,7 +58,7 @@ export const phases = [
     input: 'Incident + real Jira URL',
     processing: 'Create ticket; notify responders',
     output: 'Ticket + message; incident stays open',
-    technology: 'Jira · Slack · FactoryOS · shared data layer',
+    technology: 'Jira · Slack · ForgeInfra · shared data layer',
     status: 'Notifications implemented',
     note: 'Jira creation and generic Slack connectivity were live-verified separately. The combined adapter is implemented and mocked-tested; a fresh combined live delivery remains unverified. Notifications can run immediately after detection, without waiting for agents or repair. Authenticated human approval is implemented. Solana and deployment remain pending.',
     tools: [

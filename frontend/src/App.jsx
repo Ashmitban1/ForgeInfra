@@ -56,12 +56,12 @@ export default function App() {
   if (route.incidentId) selectedIncident.current = route.incidentId;
   const contextRoute = { ...route, incidentId: route.incidentId ?? selectedIncident.current };
   useEffect(() => {
-    document.title = route.name === 'landing' ? 'FactoryOS — Reliability, engineered.' : 'FactoryOS — ' + ({ mission: 'Mission Control', investigate: 'Incident Investigation', engineering: 'Engineering Evidence', operations: 'Operational Oversight' }[route.name] ?? 'Operations');
+    document.title = route.name === 'landing' ? 'ForgeInfra — Reliability, engineered.' : 'ForgeInfra — ' + ({ mission: 'Mission Control', investigate: 'Incident Investigation', engineering: 'Engineering Evidence', operations: 'Operational Oversight' }[route.name] ?? 'Operations');
   }, [route.name]);
   return (
     <MotionConfig reducedMotion="user">
       {route.name === 'landing'
-        ? <Suspense fallback={<div className="landing-loading" role="status">Loading FactoryOS overview…</div>}><LandingPage section={route.section} /></Suspense>
+        ? <Suspense fallback={<div className="landing-loading" role="status">Loading ForgeInfra overview…</div>}><LandingPage section={route.section} /></Suspense>
         : <OperationalApp route={contextRoute} />}
     </MotionConfig>
   );

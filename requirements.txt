@@ -11,3 +11,4 @@ pymongo>=4.11,<5
 dnspython>=2,<3
 python-dotenv>=1,<2
 psycopg[binary]>=3.2,<4
+solders==0.27.1

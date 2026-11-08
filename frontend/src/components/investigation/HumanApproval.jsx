@@ -4,7 +4,7 @@ import { isDemoMode } from '../../demo/fixtures.js';
 import { actionKey } from '../../hooks/useIncidentWorkflow.js';
 import { Badge } from '../ui.jsx';
 
-export default function HumanApproval({ incidentId, summary, configured, onChanged, candidateRevision, investigationJobId }) {
+export default function HumanApproval({ incidentId, summary, configured, onChanged, candidateRevision, investigationJobId, onSessionChange }) {
   const [credential, setCredential] = useState('');
   const [token, setToken] = useState('');
   const [state, setState] = useState({ view: null, history: null, error: null });
@@ -49,11 +49,11 @@ export default function HumanApproval({ incidentId, summary, configured, onChang
   return <div className="approval-panel">
     <p>Human decision: <Badge tone={view?.status === 'APPROVED' ? 'ok' : 'review'}>{view?.status || 'PENDING'}</Badge></p>
     {isDemoMode() ? <p className="note">Human decisions are disabled for demo fixtures.</p> : <>
-      {!configured && <p className="note">Reviewer authentication is not configured. Set FACTORYOS_APPROVERS_JSON on the backend using the human approval guide.</p>}
-      <form className="reviewer-session" onSubmit={event => { event.preventDefault(); setToken(credential.trim()); setPending(null); }}>
+      {!configured && <p className="note">Reviewer authentication is not configured. Configure named reviewers on the backend using the human approval guide.</p>}
+      <form className="reviewer-session" onSubmit={event => { event.preventDefault(); setToken(credential.trim()); onSessionChange?.(credential.trim()); setPending(null); }}>
         <label>Reviewer credential <input type="password" autoComplete="off" value={credential} onChange={event => setCredential(event.target.value)} placeholder="Named reviewer bearer token" /></label>
         <button className="btn" disabled={!configured || !credential.trim() || busy}>Inspect approval package</button>
-        {token && <button className="btn" type="button" onClick={() => { setToken(''); setCredential(''); setPending(null); }}>Clear credential</button>}
+        {token && <button className="btn" type="button" onClick={() => { setToken(''); onSessionChange?.(''); setCredential(''); setPending(null); }}>Clear credential</button>}
       </form>
       <p className="note">The credential is held in this view's memory. AI provider keys are not reviewer credentials.</p>
     </>}

@@ -40,6 +40,9 @@ class IncidentUpdate(BaseModel):
 
     @model_validator(mode="after")
     def require_change(self):
+        if self.integrations and any(key.lower().startswith(("solana", "repairproof", "repair_proof"))
+                                     for key in self.integrations):
+            raise ValueError("RepairProof fields are reserved for authenticated proof workflows")
         values = self.model_dump(exclude={"event_id", "expected_updated_at"}, exclude_none=True)
         if not values:
             raise ValueError("At least one update field or note is required")

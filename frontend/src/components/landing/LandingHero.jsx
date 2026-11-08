@@ -67,7 +67,7 @@ export default function LandingHero({ scrollTo }) {
   return (
     <section className="landing-hero" id="overview" aria-labelledby="hero-heading">
       <motion.div className="hero-copy" initial={reduce ? false : { opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .6 }}>
-        <h1 id="hero-heading" className="hero-brand"><FactoryOSMark size={72} /><span>FactoryOS</span></h1>
+        <h1 id="hero-heading" className="hero-brand"><FactoryOSMark size={72} /><span>ForgeInfra</span></h1>
         <p className="hero-tagline">Detect. Investigate.<br className="hero-mobile-break" /> Verify. Respond.</p>
         <p className="hero-description">AI-powered infrastructure reliability and legacy software modernization.</p>
         <div className="hero-actions"><a className="metal-button" href={missionHref}>Enter Mission Control <span aria-hidden="true">↗</span></a><button className="text-button" onClick={() => scrollTo('architecture')}>Explore Workflow <span aria-hidden="true">↓</span></button></div>

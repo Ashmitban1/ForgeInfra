@@ -13,6 +13,9 @@ def isolate_developer_configuration(monkeypatch):
     """
     for name in ("MONGODB_URI", "TIGERDATA_DATABASE_URL", "NVIDIA_API_KEY", "GEMINI_API_KEY"):
         monkeypatch.setenv(name, "")
+    monkeypatch.setenv("SOLANA_ENABLED", "false")
+    for name in ("SOLANA_ALLOWED_PUBLISHER", "SOLANA_PUBLISHER_KEYPAIR_PATH"):
+        monkeypatch.setenv(name, "")
 
 
 def pytest_addoption(parser):

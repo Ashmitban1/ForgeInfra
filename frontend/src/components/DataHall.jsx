@@ -176,7 +176,7 @@ export default function DataHall({ devices, history, now, incidents, telemetryEr
 
   const nodeState = {
     sensors: { color: telemetryError && !devices.length ? C.fault : anyFresh ? C.ok : C.muted, sub: `${devices.length} device${devices.length === 1 ? '' : 's'}`, label: 'Hardware feed' },
-    api: { color: telemetryError ? (devices.length ? C.review : C.fault) : loading ? C.muted : C.ok, sub: telemetryError ? 'Unreachable' : loading ? 'Connecting' : 'Receiving', label: 'FactoryOS API' },
+    api: { color: telemetryError ? (devices.length ? C.review : C.fault) : loading ? C.muted : C.ok, sub: telemetryError ? 'Unreachable' : loading ? 'Connecting' : 'Receiving', label: 'ForgeInfra API' },
     legacy: { color: mismatched ? C.fault : unknown ? C.review : anyFresh ? C.ok : C.muted, sub: mismatched ? `${mismatched} mismatch` : unknown ? 'Unavailable' : 'Agrees', label: 'Legacy monitor' },
     indep: { color: faulted ? C.fault : anyFresh ? C.ok : C.muted, sub: faulted ? `${faulted} fault${faulted === 1 ? '' : 's'}` : 'Nominal', label: 'Independent check' },
     incident: { color: open.length ? C.review : incidents ? C.ok : C.muted, sub: incidents ? `${open.length} open` : '—', label: 'Incident' },

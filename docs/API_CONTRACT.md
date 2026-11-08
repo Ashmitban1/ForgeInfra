@@ -1,5 +1,12 @@
 # FactoryOS API contract (v1)
 
+RepairProof Phase 1 adds disabled-by-default authenticated commitment/read-only
+verification routes; existing contracts are unchanged. See the exact
+[RepairProof API, durability, and mock-provider contract](REPAIRPROOF_PHASE1.md).
+The disabled-by-default [Phase 2 Devnet adapter](REPAIRPROOF_PHASE2.md) adds bounded
+RPC/signing and POST `/api/repair-proofs/{proof_id}/reconcile` (receipt persistence
+only, never signs or resubmits). Existing approval and commitment formats remain unchanged.
+
 Base: `http://127.0.0.1:8000`. Run the integrated entry point
 `backend.app:app`: P1's same FastAPI app with P2 routers mounted.
 P1 owns telemetry, incidents, lifecycle/history, and optional MongoDB/Tiger Data

@@ -25,7 +25,7 @@ export default function Shell({ route, polling, children, backend }) {
     <div className="shell" data-workspace={route.name}>
       <a className="skip-link" href="#main">Skip to main content</a>
       <header className="topbar">
-        <a className="brand app-brand" href={landingHref} aria-label="FactoryOS product overview"><FactoryOSLogo /><span className="eyebrow">OPERATIONS WORKSPACE</span></a>
+        <a className="brand app-brand" href={landingHref} aria-label="ForgeInfra product overview"><FactoryOSLogo /><span className="eyebrow">OPERATIONS WORKSPACE</span></a>
         <nav aria-label="Primary">
           {nav.map(item => (
             <a key={item.id} href={item.href} aria-current={route.name === item.id ? 'page' : undefined}>
@@ -51,7 +51,7 @@ export default function Shell({ route, polling, children, backend }) {
       </header>
       {demo && (
         <p className="demo-banner" role="note">
-          <strong>Demo mode.</strong> Everything on screen is hardcoded sample data, not from the FactoryOS backend.
+          <strong>Demo mode.</strong> Everything on screen is hardcoded sample data, not from the ForgeInfra backend.
           Turn “Demo data” off to see live API state.
         </p>
       )}

@@ -20,6 +20,10 @@ from backend.agents.review_router import create_review_router
 from backend.modernization.approval import ApprovalService
 from backend.modernization.approval_router import create_approval_router
 from backend.integrations.router import create_notification_router
+from backend.repairproof.repository import ProofRepository
+from backend.repairproof.service import RepairProofService
+from backend.repairproof.router import create_repairproof_router
+from backend.repairproof.live import adapter_from_environment, LiveConfigurationError
 
 class _LifespanService:
     """Keep route references stable while giving each lifespan fresh workers.
@@ -84,6 +88,7 @@ service = _LifespanService(RepairService(repository))
 investigation_service = _LifespanService(InvestigationService(repository.for_investigations()))
 review_service = _LifespanService(ReviewService(repository.for_reviews(), repository.for_investigations()))
 approval_service = _LifespanService(ApprovalService(repository, repository.for_investigations(), review_service))
+repairproof_service = _LifespanService(RepairProofService(approval_service, ProofRepository(None)))
 app = main.app
 _p1_lifespan = app.router.lifespan_context
 
@@ -102,6 +107,13 @@ async def integrated_lifespan(app):
             handle._bind(worker)
         gate = ApprovalService(shared, shared.for_investigations(), review_service)
         approval_service._bind(gate)
+        # Construction never contacts RPC or reads private key bytes. Signing is
+        # lazy, behind the enabled flag, authenticated durable approval, and fees.
+        try:
+            adapter = adapter_from_environment()
+        except LiveConfigurationError:
+            adapter = None
+        repairproof_service._bind(RepairProofService(gate, ProofRepository(shared._database), adapter))
         app.state.p2_services = {"repair": service._target, "investigation": investigation_service._target,
                                  "review": review_service._target, "approval": gate, "repository": shared}
         try:
@@ -113,6 +125,8 @@ async def integrated_lifespan(app):
                 handle.close()
                 handle._release()
             approval_service._release()
+            repairproof_service.close()
+            repairproof_service._release()
             repository._release()
             app.state.p2_services = None
 
@@ -122,6 +136,7 @@ app.include_router(create_modernization_router(service, investigation_service, r
 app.include_router(create_investigation_router(investigation_service, review_service, approval_service))
 app.include_router(create_review_router(review_service))
 app.include_router(create_approval_router(approval_service))
+app.include_router(create_repairproof_router(repairproof_service))
 app.include_router(create_notification_router(
     main._incidents, main._lock, get_snapshot=main.get_incident_snapshot,
     publish_result=main.publish_notification,

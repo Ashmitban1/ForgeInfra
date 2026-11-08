@@ -402,7 +402,7 @@ body::after {
 
 /* Shared API workflows and persisted evidence. */
 .workflow-controls { margin-top: 1rem; }
-.workflow-controls .actions, .reviewer-session, .approval-panel .actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: end; }
+.workflow-controls .actions, .reviewer-session, .approval-panel .actions, .repairproof-panel .actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: end; }
 .approval-panel label, .reviewer-session label { display: grid; gap: .4rem; flex: 1; min-width: 12rem; color: inherit; }
 .approval-panel input, .approval-panel textarea { width: 100%; padding: .65rem; border: 1px solid var(--border, #34455f); background: var(--surface, #101b2b); color: inherit; border-radius: .4rem; font: inherit; }
 .approval-panel textarea { min-height: 5rem; margin-bottom: .7rem; }

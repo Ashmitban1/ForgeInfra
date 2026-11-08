@@ -9,5 +9,5 @@ export function FactoryOSMark({ size = 34 }) {
   );
 }
 export default function FactoryOSLogo({ compact = false }) {
-  return <span className="fos-logo"><FactoryOSMark />{!compact && <span>Factory<span className="fos-logo-os">OS</span></span>}</span>;
+  return <span className="fos-logo"><FactoryOSMark />{!compact && <span>Forge<span className="fos-logo-os">Infra</span></span>}</span>;
 }
