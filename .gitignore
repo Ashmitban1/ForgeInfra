@@ -17,3 +17,7 @@ frontend/dist/
 .DS_Store
 .vscode/
 .idea/
+
+.factoryos-jira.sqlite3*
+
+.factoryos-jira-live.json
