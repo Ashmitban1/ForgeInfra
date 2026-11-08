@@ -69,7 +69,7 @@ export default function RackCard({ device, history, now, selected, onSelect }) {
     `${device.device_id}: ${meta.label}`,
     `${formatNumber(hw.temperature_c)} °C`,
     coolingFault ? 'cooling fault reported' : 'no cooling fault reported',
-    health.mismatch ? 'legacy monitor mismatch' : 'no source mismatch',
+    !health.comparisonAvailable ? 'comparison unavailable' : health.mismatch ? 'legacy monitor mismatch' : 'no source mismatch',
   ].join(', ');
 
   return (

@@ -16,18 +16,19 @@ export default function MismatchEvidence({ source }) {
   const rel = source.reliability ?? {};
   const reasons = rel.reasons ?? [];
   const placeholder = /placeholder/i.test(legacy.source_revision ?? '');
+  const unavailable = typeof rel.mismatch !== 'boolean' || legacy.status === 'UNKNOWN';
 
   return (
     <div className="evidence">
       <motion.p
         key={`${rel.mismatch}-${legacy.status}-${source.expected_status}`}
-        className={`verdict ${rel.mismatch ? 'verdict-fault' : 'verdict-ok'}`}
+        className={`verdict ${unavailable ? 'verdict-review' : rel.mismatch ? 'verdict-fault' : 'verdict-ok'}`}
         initial={{ opacity: 0, x: -8 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.25 }}
       >
         <span aria-hidden="true">{rel.mismatch ? '▲' : '●'}</span>
-        {rel.mismatch
+        {unavailable ? 'Comparison unavailable: the legacy monitor has no verified decision. Independent alerts remain active.' : rel.mismatch
           ? `Source mismatch: legacy monitor says ${legacy.status}, independent check expects ${source.expected_status}.`
           : `No source mismatch: legacy monitor and independent check both say ${source.expected_status ?? '—'}.`}
       </motion.p>
@@ -42,6 +43,7 @@ export default function MismatchEvidence({ source }) {
         <div className="compare-col">
           <h3>Legacy monitor</h3>
           <p>{statusBadge(legacy.status)}</p>
+          {legacy.health && <p className="muted">Monitor health: {legacy.health} · execution: {legacy.execution_status}</p>}
           <p className="muted">Revision <span className="mono">{legacy.source_revision ?? '—'}</span></p>
           {placeholder && <p className="caveat">Placeholder function, not genuine reverse engineering (API contract).</p>}
           <p className="muted">Sampled {formatDateTime(legacy.sampled_at)}</p>

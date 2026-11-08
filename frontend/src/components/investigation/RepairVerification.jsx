@@ -4,7 +4,7 @@ import { classifyStatus } from '../../lib/health.js';
 import { Badge } from '../ui.jsx';
 
 const VIEW = {
-  verified: { tone: 'ok', title: 'Repair verified', color: '#3fe0a0' },
+  verified: { tone: 'ok', title: 'Software candidate verified', color: '#3fe0a0' },
   'tests-passed': { tone: 'review', title: 'Tests passed — recovery not confirmed', color: '#ffc261' },
   running: { tone: 'info', title: 'Verification in progress', color: '#52d6ff' },
   failed: { tone: 'fault', title: 'Verification failed', color: '#ff6677' },
@@ -91,8 +91,8 @@ export default function RepairVerification({ verification, deviceId }) {
         </li>
       </ul>
       <p className="note">
-        Tool execution status is not an acceptance-test outcome. API v1 supplies no candidate regression evidence,
-        so no before/after pass totals are inferred. A nominal reading does not prove physical equipment recovery.
+        Test outcomes come from the selected generated candidate's acceptance evidence and offline replay.
+        A nominal reading does not prove physical equipment recovery.
         Verification, human approval and deployment are separate decisions.
       </p>
     </>

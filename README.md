@@ -18,8 +18,7 @@ volatile. See [the API contract](docs/API_CONTRACT.md) for routes and failure be
 
 Physical Arduino operation, live Atlas/Tiger Data connectivity, Jira/Slack,
 Solana, Vultr deployment, and production authentication are not established by
-the local integration tests. This integration does not change P3's UI or activate
-candidate code, create PRs, merge, or deploy.
+the local integration tests. The dashboard connects investigation, generated evidence, independent review, human approval, persisted history, host metrics, and notifications. Candidate activation, PR creation, merge, and deployment remain separate.
 
 **Person 2's runnable baseline:** `fixtures/legacy_monitor/monitor.py` is a
 standalone, team-authored temperature-only monitor with JSON samples, an execution
@@ -38,8 +37,8 @@ python -m backend.modernization.testing --incident-id INC-COOLING-001
 See [the modernization workflow](backend/modernization/README.md). Human approval
 is available through the P2 wrapper; deployment and live activation remain pending.
 
-**Integrated entry point:** `python -m uvicorn backend.modernization.app:app --reload`
-mounts P2 routes on P1's same FastAPI app. P1 remains the canonical incident writer;
+**Integrated entry point:** `python -m uvicorn backend.app:app --reload`
+mounts P2 routes on P1's same FastAPI app, including Jira/Slack routes. P1 remains the canonical incident writer;
 P2 synchronously publishes job transitions through P1's history/persistence
 boundary. Fresh workers are created after storage restoration on every app
 lifecycle. Acknowledged MongoDB jobs survive restart; unfinished work becomes
@@ -86,7 +85,7 @@ FactoryOS/
 │   ├── storage/                # P1: Mongo incidents/history; Tiger telemetry
 │   ├── agents/                 # P2: Nemotron tools and independent Gemini review
 │   ├── modernization/          # P2: fixture adapter, candidate patch, Docker tests
-│   └── integrations/           # P3: Jira, Slack, Solana pending
+│   └── integrations/           # P3: Jira and Slack adapters; Solana pending
 ├── hardware/
 │   ├── arduino/factoryos_arduino/factoryos_arduino.ino
 │   ├── serial_gateway.py
@@ -106,7 +105,7 @@ FactoryOS/
 py -3 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m uvicorn backend.modernization.app:app --reload
+python -m uvicorn backend.app:app --reload
 ```
 Open http://127.0.0.1:8000/docs and http://127.0.0.1:8000/health. If PowerShell blocks activation, run `.\.venv\Scripts\python.exe` instead of `python`.
 

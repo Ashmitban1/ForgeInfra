@@ -1,4 +1,3 @@
-import { ageSince } from './format.js';
 
 // Mirrors STALE_AFTER_SECONDS in backend/reliability.py. Used only to flag when the dashboard
 // has not received a reading recently; it does not change any backend decision.
@@ -8,7 +7,7 @@ export const STATE_META = {
   fault: { label: 'Fault', icon: '▲', tone: 'fault' },
   review: { label: 'Needs review', icon: '◆', tone: 'review' },
   nominal: { label: 'Nominal', icon: '●', tone: 'ok' },
-  recovered: { label: 'Recovered', icon: '✔', tone: 'ok' },
+  recovered: { label: 'Now nominal', icon: '✔', tone: 'ok' },
   stale: { label: 'No recent data', icon: '○', tone: 'muted' },
 };
 
@@ -16,70 +15,52 @@ export const REASON_LABELS = {
   legacy_missed_fault: 'Legacy monitor reported a different status than the independent check (it missed a fault).',
   stale_hardware_reading: `Hardware reading was older than ${STALE_AFTER_SECONDS}s when the API received it.`,
   future_observation_timestamp: 'Hardware observation timestamp was in the future.',
+  legacy_monitor_unavailable: 'The legacy monitor could not produce a verified result; comparison is unavailable.',
 };
 
 export function deviceHealth(device, nowMs, deviceHistory = []) {
   const hw = device?.hardware ?? {};
-  const ageSeconds = ageSince(hw.received_at, nowMs);
-  const stale = ageSeconds === null || ageSeconds > STALE_AFTER_SECONDS;
+  const observed = Date.parse(hw.observed_at);
+  const ageSeconds = Number.isFinite(observed) ? (nowMs - observed) / 1000 : null;
   const reasons = device?.reliability?.reasons ?? [];
+  const stale = ageSeconds === null || ageSeconds > STALE_AFTER_SECONDS || ageSeconds < -10
+    || reasons.includes('stale_hardware_reading') || reasons.includes('future_observation_timestamp');
   const fault = hw.cooling_fault === true || device?.expected_status === 'WARNING';
-  const review = !fault && (device?.reliability?.mismatch === true || reasons.length > 0);
+  const comparisonAvailable = typeof device?.reliability?.mismatch === 'boolean' && device?.legacy_monitor?.status !== 'UNKNOWN';
+  const review = !fault && (!comparisonAvailable || device?.reliability?.mismatch === true || reasons.length > 0);
   const level = fault ? 'fault' : review ? 'review' : 'nominal';
   const faultedEarlier = deviceHistory.some(r => r.cooling_fault || r.expected_status === 'WARNING');
   const state = stale ? 'stale' : level === 'nominal' && faultedEarlier ? 'recovered' : level;
-  return { state, level, stale, ageSeconds, mismatch: device?.reliability?.mismatch === true };
+  return { state, level, stale, ageSeconds, comparisonAvailable, mismatch: device?.reliability?.mismatch ?? null };
 }
 
-const DONE = new Set(['COMPLETE', 'COMPLETED', 'DONE', 'SUCCESS', 'SUCCEEDED', 'FINISHED']);
-const FAILED = new Set(['FAILED', 'ERROR', 'TIMEOUT', 'TIMED_OUT']);
+const DONE = new Set(['COMPLETE', 'COMPLETED', 'DONE', 'SUCCESS', 'SUCCEEDED', 'FINISHED', 'PASSED', 'APPROVED']);
+const FAILED = new Set(['FAILED', 'ERROR', 'TIMEOUT', 'TIMED_OUT', 'INTERRUPTED', 'REJECTED', 'FAILURE']);
 const RUNNING = new Set(['RUNNING', 'IN_PROGRESS', 'STARTED']);
 
 // The v1 contract only defines PENDING. Anything else is shown verbatim and classified conservatively.
 export function classifyStatus(status) {
   const s = String(status ?? '').trim().toUpperCase();
   if (!s) return 'unknown';
-  if (s === 'PENDING') return 'pending';
+  if (s === 'PENDING' || s === 'QUEUED') return 'pending';
+  if (s === 'STALE') return 'review';
   if (DONE.has(s)) return 'done';
   if (FAILED.has(s)) return 'failed';
   if (RUNNING.has(s)) return 'active';
   return 'unknown';
 }
 
-export function pathSteps(incident) {
-  const integrations = incident?.integrations ?? {};
-  const hasTicket = Boolean(integrations.jira_key || integrations.slack_message_id);
+export function pathSteps(incident, analysis = {}) {
+  const approval = analysis?.approval;
+  const review = analysis?.decision_review || incident.decision_review;
+  const integrations = incident.integrations || {};
+  const notified = Boolean(integrations.jira_key) && integrations.slack_status === 'DELIVERED';
   return [
-    {
-      id: 'detected',
-      label: 'Detected',
-      state: 'done',
-      detail: 'Incident record exists in the API.',
-    },
-    {
-      id: 'nemotron',
-      label: 'Nemotron investigation',
-      state: classifyStatus(incident?.investigation?.status),
-      detail: `investigation.status = ${incident?.investigation?.status ?? 'missing'}`,
-    },
-    {
-      id: 'gemini',
-      label: 'Gemini review',
-      state: classifyStatus(incident?.decision_review?.status),
-      detail: `decision_review.status = ${incident?.decision_review?.status ?? 'missing'}`,
-    },
-    {
-      id: 'approval',
-      label: 'Human approval',
-      state: 'unavailable',
-      detail: 'Approval route is not implemented in API v1.',
-    },
-    {
-      id: 'notify',
-      label: 'Jira / Slack',
-      state: hasTicket ? 'done' : 'pending',
-      detail: hasTicket ? 'At least one provider ID is recorded.' : 'No Jira key or Slack message ID recorded.',
-    },
+    { id: 'detected', label: 'Detected', state: 'done', detail: 'Incident exists in the shared backend.' },
+    { id: 'nemotron', label: 'Nemotron investigation', state: classifyStatus(incident.investigation?.status), detail: incident.investigation?.status || 'PENDING' },
+    { id: 'gemini', label: 'Gemini review', state: classifyStatus(review?.status), detail: review?.status || 'PENDING' },
+    { id: 'approval', label: 'Human approval', state: approval ? classifyStatus(approval.status) : 'pending', detail: approval?.status || 'Inspect current approval eligibility' },
+    { id: 'notify', label: 'Jira / Slack', state: notified ? 'done' : integrations.jira_key ? 'review' : 'pending', detail: notified ? 'Both providers confirmed' : integrations.jira_key ? 'Jira confirmed; Slack incomplete' : 'No provider confirmation' },
   ];
 }
 
@@ -97,31 +78,25 @@ export function describeToolCall(call, index) {
   return { name: String(call), status: null, at: null, raw: null };
 }
 
-const TEST_CALL = /test|regress|verif/i;
-
-// API v1 has no per-incident acceptance-test result contract. Tool-call completion
-// proves execution only, never test success or a repaired physical system.
-export function repairVerification(incident, live) {
-  const calls = Array.isArray(incident?.investigation?.tool_calls) ? incident.investigation.tool_calls : [];
-  const tests = calls
-    .map(describeToolCall)
-    .filter(c => TEST_CALL.test(c.name))
-    .map(c => ({ name: c.name, status: c.status, kind: classifyStatus(c.status) }));
-  const failed = tests.some(t => t.kind === 'failed');
-  const running = tests.some(t => t.kind === 'active');
-  const liveNominal = Boolean(live) && !live.stale && live.level === 'nominal';
-  let state = 'unverified';
-  let detail = 'No per-incident acceptance-test evidence is available. Repair verification is not connected in API v1.';
-  if (failed) {
-    state = 'failed';
-    detail = 'A verification tool execution failed. No repair success is inferred.';
-  } else if (running) {
-    state = 'running';
-    detail = 'A verification tool execution is running. Test outcomes are not yet established.';
-  } else if (tests.some(t => t.kind === 'done')) {
-    detail = 'A test tool finished, but completion alone does not establish passing acceptance tests. Repair remains unverified.';
+export function repairVerification(incident, live, candidate = incident?.investigation?.generated_repair) {
+  const tests = [];
+  for (const label of ['original', 'candidate']) {
+    for (const test of candidate?.tests?.[label]?.cases || []) tests.push({ name: label + ': ' + test.name,
+      status: test.outcome, kind: classifyStatus(test.outcome) });
   }
-  return { state, detail, tests, liveNominal };
+  let state = 'unverified';
+  let detail = 'No verified generated candidate is available.';
+  if (candidate) {
+    const verified = candidate.verification_status === 'VERIFIED' && candidate.tests?.original?.failed > 0
+      && candidate.tests?.candidate?.exit_code === 0 && candidate.tests?.candidate?.failed === 0
+      && candidate.tests?.candidate?.passed > 0 && candidate.replay?.detection_gap_fixed === true;
+    state = verified ? 'verified' : 'failed';
+    detail = verified ? 'Candidate passed acceptance tests and fixed the detection gap in offline replay. Physical equipment health remains unverified.'
+      : 'Candidate verification: ' + candidate.verification_status + '. Inspect actual test and replay evidence.';
+  } else if (['QUEUED', 'RUNNING'].includes(incident?.investigation?.status)) {
+    state = 'running'; detail = 'Investigation is running; a verified candidate has not been produced.';
+  }
+  return { state, detail, tests, liveNominal: Boolean(live) && !live.stale && live.level === 'nominal' };
 }
 
 export function describeFinding(finding) {

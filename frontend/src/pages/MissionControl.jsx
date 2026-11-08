@@ -8,6 +8,7 @@ import RackCard from '../components/RackCard.jsx';
 import TelemetryPanel from '../components/TelemetryPanel.jsx';
 import { Panel, SkeletonRows, StateMessage } from '../components/ui.jsx';
 import { deviceHealth } from '../lib/health.js';
+import SystemHealth from '../components/SystemHealth.jsx';
 
 function Kpi({ label, value, tone = 'info', hint }) {
   return (
@@ -48,7 +49,7 @@ function TelemetryGate({ state, children }) {
   );
 }
 
-export default function MissionControl({ telemetry, incidents, history, now }) {
+export default function MissionControl({ telemetry, incidents, history, now, backend, persistedEvents = [] }) {
   const [selectedId, setSelectedId] = useState(null);
   const devices = useMemo(() => telemetry.data ?? [], [telemetry.data]);
 
@@ -63,7 +64,7 @@ export default function MissionControl({ telemetry, incidents, history, now }) {
 
   const { pulses, dismiss } = useReadingPulses(telemetry.data);
   const transitions = useHealthTransitions(telemetry.data, history, now);
-  const events = useMemo(() => buildEvents(incidents.data, history), [incidents.data, history]);
+  const events = useMemo(() => buildEvents(incidents.data, history, persistedEvents), [incidents.data, history, persistedEvents]);
   const openIncidents = (incidents.data ?? []).filter(i => i.status === 'OPEN').length;
   const faulted = devices.filter(d => healthById[d.device_id]?.level === 'fault').length;
   const mismatched = devices.filter(d => healthById[d.device_id]?.mismatch).length;
@@ -82,15 +83,16 @@ export default function MissionControl({ telemetry, incidents, history, now }) {
       </div>
 
       <div className="kpis" aria-label="Summary">
-        <Kpi label="Devices reporting" value={ready ? devices.length : noValue} />
+        <Kpi label="Known racks" value={ready ? devices.length : noValue} hint={ready ? devices.filter(device => !healthById[device.device_id]?.stale).length + ' with fresh observations' : ''} />
         <Kpi label="Cooling / expected faults" value={ready ? faulted : noValue} tone={!ready ? 'muted' : faulted ? 'fault' : 'ok'} />
-        <Kpi label="Source mismatches" value={ready ? mismatched : noValue} tone={!ready ? 'muted' : mismatched ? 'fault' : 'ok'} hint="legacy ≠ independent" />
+        <Kpi label="Source mismatches" value={ready ? mismatched : noValue} tone={!ready ? 'muted' : mismatched ? 'fault' : 'ok'} hint={devices.some(device => !healthById[device.device_id]?.comparisonAvailable) ? devices.filter(device => !healthById[device.device_id]?.comparisonAvailable).length + ' comparisons unavailable' : 'legacy ≠ independent'} />
         <Kpi
           label="Open incidents"
           value={incidents.data ? openIncidents : incidents.error ? '—' : '…'}
           tone={!incidents.data ? 'muted' : openIncidents ? 'review' : 'ok'}
         />
       </div>
+      <SystemHealth backend={backend} selectedDevice={selected} />
 
       <Panel title="Data hall" eyebrow="Racks and incident pipeline" headingId="hall-h" className="panel-hall">
         <DataHall
@@ -125,7 +127,7 @@ export default function MissionControl({ telemetry, incidents, history, now }) {
                     ))}
                   </div>
                   <p className="note">
-                    One rack per device that has reported telemetry; none are inferred. Select a rack to inspect it.
+                    Racks come from current telemetry or persisted source/incident records. Stored observations retain their original timestamps.
                   </p>
                 </>
               )}

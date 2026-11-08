@@ -4,9 +4,16 @@ import { StateMessage } from './ui.jsx';
 
 const MAX_EVENTS = 25;
 
-export function buildEvents(incidents, history) {
+export function buildEvents(incidents, history, persistedEvents = []) {
   const events = [];
+  for (const event of persistedEvents) events.push({
+    id: 'persisted-' + event.incident_id + '-' + event.event_id,
+    at: event.recorded_at, tone: /failed|reject/.test(event.kind) ? 'fault' : 'review',
+    title: event.incident_id + ' · ' + event.kind.replaceAll('_', ' '),
+    detail: event.note || 'Persisted lifecycle event', href: investigateHref(event.incident_id),
+  });
   for (const incident of incidents ?? []) {
+    if (persistedEvents.some(event => event.incident_id === incident.incident_id && event.snapshot?.created_at === incident.created_at)) continue;
     events.push({
       id: `inc-${incident.incident_id}`,
       at: incident.created_at,
@@ -55,8 +62,7 @@ export default function EventTimeline({ events }) {
           ))}
       </ol>
       <p className="note">
-        Timeline combines API incident timestamps with readings this tab observed while polling. Nemotron, Gemini,
-        and Jira/Slack steps have no timestamps in API v1, so they are not shown here.
+        Timeline uses persisted incident lifecycle events and actual telemetry observations. Original event IDs and timestamps are retained.
       </p>
     </>
   );

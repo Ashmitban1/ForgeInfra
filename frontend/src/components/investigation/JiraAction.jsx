@@ -1,17 +1,17 @@
-import { usePolling } from '../../hooks/usePolling.js';
 import { useRef, useState } from 'react';
-import { notifyIncident, getJiraCapability, getSlackCapability } from '../../api.js';
+import { notifyIncident } from '../../api.js';
 import { isDemoMode } from '../../demo/fixtures.js';
 import { safeHttpUrl } from '../../lib/format.js';
 
-export default function JiraAction({ incident, onCreated }) {
+export default function JiraAction({ incident, onCreated, capabilities }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const inFlight = useRef(false);
   const demo = isDemoMode();
-  const capability = usePolling(getJiraCapability, { intervalMs: 10000 });
-  const slackCapability = usePolling(getSlackCapability, { intervalMs: 10000 });
+  const capability = { data: capabilities?.jira?.notify === true, loading: !capabilities,
+    error: capabilities?.unavailable ? new Error(capabilities.error) : null };
+  const slackCapability = { data: capabilities?.slack?.notify === true };
   const issue = result ?? incident.integrations;
   const slackStatus = issue?.slack_status;
   const blocked = ['PENDING', 'UNCONFIRMED'].includes(slackStatus);
@@ -47,7 +47,7 @@ export default function JiraAction({ incident, onCreated }) {
         </button>
       )}
       {!issue?.jira_key && capability.loading && <p role="status">Checking Jira route availability…</p>}
-      {!issue?.jira_key && capability.data === false && <p className="note">Jira route unavailable. Start the backend with backend.integrations.app:app.</p>}
+      {!issue?.jira_key && !capability.loading && capability.data === false && <p className="note">Notification route unavailable. Start the shared backend with backend.app:app.</p>}
       {capability.error && <p className="inline-error" role="alert">{capability.error.message}</p>}
       {pending && <p role="status">Waiting for provider confirmation…</p>}
       {result && <p role="status">Jira confirmed {result.jira_key}.</p>}

@@ -65,7 +65,7 @@ function RackSilhouette({ device, x, width, now, history, ring, reduce }) {
   const color = STATE_COLOR[health.state];
   const slots = [
     { id: 'cool', color: health.stale ? C.muted : hw.cooling_fault ? C.fault : C.ok },
-    { id: 'legacy', color: health.stale ? C.muted : health.mismatch ? C.fault : device.legacy_monitor?.status === 'WARNING' ? C.review : C.ok },
+    { id: 'legacy', color: health.stale ? C.muted : !health.comparisonAvailable ? C.review : health.mismatch ? C.fault : device.legacy_monitor?.status === 'WARNING' ? C.review : C.ok },
     { id: 'indep', color: health.stale ? C.muted : device.expected_status === 'WARNING' ? C.fault : C.ok },
     { id: 'fresh', color: health.stale ? C.review : C.ok },
     { id: 'temp', color: health.stale ? C.muted : hw.temperature_c > 35 ? C.fault : C.ok },
@@ -159,6 +159,7 @@ export default function DataHall({ devices, history, now, incidents, telemetryEr
   const anyFresh = healths.some(h => !h.stale);
   const faulted = healths.filter(h => h.level === 'fault').length;
   const mismatched = healths.filter(h => h.mismatch).length;
+  const unknown = healths.filter(h => !h.comparisonAvailable).length;
 
   const open = (incidents ?? []).filter(i => i.status === 'OPEN');
   const focus = [...open].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0] ?? null;
@@ -176,7 +177,7 @@ export default function DataHall({ devices, history, now, incidents, telemetryEr
   const nodeState = {
     sensors: { color: telemetryError && !devices.length ? C.fault : anyFresh ? C.ok : C.muted, sub: `${devices.length} device${devices.length === 1 ? '' : 's'}`, label: 'Hardware feed' },
     api: { color: telemetryError ? (devices.length ? C.review : C.fault) : loading ? C.muted : C.ok, sub: telemetryError ? 'Unreachable' : loading ? 'Connecting' : 'Receiving', label: 'FactoryOS API' },
-    legacy: { color: mismatched ? C.fault : anyFresh ? C.ok : C.muted, sub: mismatched ? `${mismatched} mismatch` : 'Agrees', label: 'Legacy monitor' },
+    legacy: { color: mismatched ? C.fault : unknown ? C.review : anyFresh ? C.ok : C.muted, sub: mismatched ? `${mismatched} mismatch` : unknown ? 'Unavailable' : 'Agrees', label: 'Legacy monitor' },
     indep: { color: faulted ? C.fault : anyFresh ? C.ok : C.muted, sub: faulted ? `${faulted} fault${faulted === 1 ? '' : 's'}` : 'Nominal', label: 'Independent check' },
     incident: { color: open.length ? C.review : incidents ? C.ok : C.muted, sub: incidents ? `${open.length} open` : '—', label: 'Incident' },
     nemotron: { color: focus ? nemo.color : C.muted, sub: focus ? nemo.label : '—', label: 'Nemotron' },
@@ -203,7 +204,7 @@ export default function DataHall({ devices, history, now, incidents, telemetryEr
     return nodeState[from].color === C.muted || target === C.muted ? C.idle : target;
   };
 
-  const summary = `Data hall. ${devices.length} racks reporting, ${faulted} with faults, ${mismatched} legacy monitor mismatches, ` +
+  const summary = `Data hall. ${devices.length} known racks, ${faulted} with faults, ${mismatched} legacy monitor mismatches, ` +
     `${open.length} open incidents. Nemotron ${focus ? nemo.label : 'idle'}, Gemini ${focus ? gem.label : 'idle'}, repair ${verifyView.sub}.`;
 
   const nodePos = id => NODES[id];

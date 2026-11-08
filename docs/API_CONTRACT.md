@@ -1,11 +1,11 @@
 # FactoryOS API contract (v1)
 
 Base: `http://127.0.0.1:8000`. Run the integrated entry point
-`backend.modernization.app:app`: P1's same FastAPI app with P2 routers mounted.
+`backend.app:app`: P1's same FastAPI app with P2 routers mounted.
 P1 owns telemetry, incidents, lifecycle/history, and optional MongoDB/Tiger Data
 persistence. P2 implements incident `/investigate`, `/review`, `/analysis`,
 `/repair`, authenticated GET/POST `/approval` and GET `/approval/history`, plus
-job/report/diff reads. P3 notifications and approval UI are separate integrations.
+job/report/diff reads. P3 notification routes and the frontend approval workflow are connected to this same server.
 See [the modernization API](MODERNIZATION_API.md),
 [Nemotron guide](../backend/agents/README.md),
 [Gemini guide](../backend/agents/GEMINI_REVIEW.md), and
@@ -259,3 +259,12 @@ details, examples, teammate boundaries and live checks are in
 All runtime write retry queues are memory-only. Only acknowledged service writes
 are restart-safe. Single backend worker/writer remains required. Neither cloud
 connection has been verified merely by implementing these interfaces.
+
+
+## Unified dashboard integration
+
+Start `backend.app:app`; the modernization and integrations entry points are compatibility aliases. Notification results publish synchronously through P1’s canonical writer and lifecycle history with an incident-incarnation check. Provider delivery and storage acknowledgement remain separate states.
+
+`GET /api/telemetry/sources` discovers up to 1,000 persisted source identities from Tiger Data. Each row has `source_kind`, `source_id`, `observed_at`, `received_at`, and `latest` (the original stored payload). A disabled Tiger store returns `{sources: [], storage_backend: "disabled"}`; an unavailable configured store returns 503. This endpoint does not invent fresh observations after restart. Host-system sources are distinct from Arduino/simulator racks.
+
+The React client reads current analysis and job evidence, authenticates named human decisions, loads Tiger history/summary, and displays actual storage health. Browser credentials remain in memory, and demo fixtures cannot submit actions.

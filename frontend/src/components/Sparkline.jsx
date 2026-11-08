@@ -12,8 +12,7 @@ export default function Sparkline({ readings }) {
   if (points.length < 2) {
     return (
       <p className="muted spark-empty" role="status">
-        {points.length === 0 ? 'No readings observed yet.' : 'Collecting readings… 1 observed so far.'} The chart
-        draws only readings this tab has actually received.
+        {points.length === 0 ? 'No stored readings are available for this window.' : 'One observation is available.'} The chart uses actual stored and current observations.
       </p>
     );
   }
@@ -29,7 +28,7 @@ export default function Sparkline({ readings }) {
   const x = i => PAD.l + ((times[i] - t0) / span) * (W - PAD.l - PAD.r);
   const y = v => PAD.t + (1 - (v - lo) / (hi - lo)) * (H - PAD.t - PAD.b);
   const path = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.temperature_c).toFixed(1)}`).join(' ');
-  const activeIndex = hover ?? points.length - 1;
+  const activeIndex = Math.min(hover ?? points.length - 1, points.length - 1);
   const active = points[activeIndex];
   const last = points.length - 1;
 
@@ -51,7 +50,7 @@ export default function Sparkline({ readings }) {
       <svg
         viewBox={`0 0 ${W} ${H}`}
         role="img"
-        aria-label={`Temperature readings observed in this tab, ${points.length} points ranging from ${formatNumber(dataMin)} to ${formatNumber(dataMax)} degrees Celsius. Use arrow keys to inspect points.`}
+        aria-label={`Stored and current temperature readings, ${points.length} points ranging from ${formatNumber(dataMin)} to ${formatNumber(dataMax)} degrees Celsius. Use arrow keys to inspect points.`}
         tabIndex={0}
         onKeyDown={onKey}
         onBlur={() => setHover(null)}

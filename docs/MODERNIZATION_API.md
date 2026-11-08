@@ -8,7 +8,7 @@ Start Docker Desktop and build the existing image once. From the repository root
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 docker build -t factoryos-monitor:local backend/modernization/container
-python -m uvicorn backend.modernization.app:app --reload
+python -m uvicorn backend.app:app --reload
 ```
 
 In another activated terminal:
@@ -34,9 +34,8 @@ Requests cannot select code to execute. This step supports the known
 
 ## One canonical incident writer
 
-`backend.modernization.app:app` is P1's same FastAPI app with P2 routes mounted.
-Start this single entry point for telemetry, storage, investigation, review, and
-approval. It does not register P3's notification router or alter the frontend.
+`backend.app:app` is P1's same FastAPI app with P2 routes mounted.
+Start this single entry point for telemetry, storage, investigation, review, approval, and Jira/Slack notifications. The older modernization and integrations startup modules alias the same complete app.
 
 P1 owns the canonical incident cache, lock, MongoDB writer, reliability evidence,
 and lifecycle history. `SharedIncidentRepository` reads through P1's snapshot

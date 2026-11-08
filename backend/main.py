@@ -478,3 +478,25 @@ def save_approval(incident_id: str, expected_incident: dict, approval: dict) -> 
     if get_incident_snapshot(incident_id)["approval_persistence"]["status"] == "PENDING":
         raise PyMongoError("Approval persistence is pending")
     return True
+
+
+def publish_notification(incident_id: str, created_at: str, fields: dict) -> dict:
+    """Commit provider-confirmed references through the sole incident writer."""
+    allowed = {'jira_key', 'jira_id', 'jira_url', 'slack_status', 'slack_channel_id',
+               'slack_message_ts', 'slack_message_id', 'slack_error'}
+    changes = {key: deepcopy(value) for key, value in fields.items() if key in allowed}
+    with _lock:
+        current = _incidents.get(incident_id)
+        if current is None or current['created_at'] != created_at:
+            raise HTTPException(409, 'Incident changed during notification; refresh before continuing')
+        reference = current.setdefault('integrations', {})
+        if reference.get('slack_status') == 'DELIVERED' and changes.get('slack_status') != 'DELIVERED':
+            changes = {key: value for key, value in changes.items() if not key.startswith('slack_')}
+        if any(reference.get(key) != value for key, value in changes.items()):
+            reference.update(changes)
+            current['updated_at'] = utc_now()
+            request_hash = fingerprint({'incident_id': incident_id, 'created_at': created_at, 'fields': changes})
+            _remember_incident(current, 'notification', 'notify-' + request_hash, request_hash)
+        result = deepcopy(current)
+    _flush_persistence()
+    return result

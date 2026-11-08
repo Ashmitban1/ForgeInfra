@@ -180,6 +180,18 @@ class TigerTelemetryStore:
         except psycopg.Error:
             raise StorageUnavailable("Tiger Data summary unavailable") from None
 
+    def sources(self) -> list[dict]:
+        """Discover persisted sources and their actual last observation."""
+        try:
+            with self._connect() as conn:
+                return conn.execute(sql.SQL('''
+                    SELECT DISTINCT ON (source_kind, source_id)
+                           source_kind, source_id, observed_at, received_at, payload AS latest
+                    FROM {} ORDER BY source_kind, source_id, observed_at DESC LIMIT 1000
+                ''').format(self.table)).fetchall()
+        except psycopg.Error:
+            raise StorageUnavailable('Tiger Data source discovery unavailable') from None
+
     def health(self) -> dict:
         with self._lock:
             return {"backend": "tigerdata", "status": "DEGRADED" if self._last_error else (

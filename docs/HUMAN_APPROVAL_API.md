@@ -1,6 +1,6 @@
 # Human approval API
 
-The integrated `backend.modernization.app:app` registers authenticated human
+The integrated `backend.app:app` registers authenticated human
 decisions over one exact candidate and evidence package on P1's same app. It
 changes no live monitor, operational incident status, deployment, PR, Jira ticket,
 or Slack message.
@@ -30,7 +30,7 @@ PY
 ```
 
 Add the printed `FACTORYOS_APPROVERS_JSON=...` line to the ignored root/backend
-`.env`, then restart `backend.modernization.app:app`. Process environment takes
+`.env`, then restart `backend.app:app`. Process environment takes
 precedence over dotenv. Without MongoDB, incidents/jobs are volatile. With
 `MONGODB_URI` and optional `MONGODB_DATABASE`, P1 restores canonical records before
 fresh P2 workers start; the shared adapter reuses P1's database/client for job

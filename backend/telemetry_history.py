@@ -66,3 +66,14 @@ def get_telemetry_storage_health(request: Request):
     return store.health() if store is not None else {
         "backend": "tigerdata", "status": "DISABLED", "pending_samples": 0, "error": None,
     }
+
+
+@router.get('/api/telemetry/sources')
+def get_telemetry_sources(request: Request):
+    store = getattr(request.app.state, 'telemetry_store', None)
+    if store is None:
+        return {'sources': [], 'storage_backend': 'disabled'}
+    try:
+        return {'sources': store.sources(), 'storage_backend': 'tigerdata'}
+    except StorageUnavailable:
+        raise HTTPException(503, 'Tiger Data source discovery unavailable') from None

@@ -29,10 +29,10 @@ Environment variables take precedence over that file.
 Run from the repository root:
 
 ```sh
-python -m uvicorn backend.integrations.app:app --reload
+python -m uvicorn backend.app:app --reload
 ```
 
-This explicit integration entry point imports the original P1 app and registers the
+The unified entry point reuses the existing P1/P2 app and registers the
 separate notification router. Existing GET and telemetry endpoints are preserved.
 Starting backend.main:app alone does not register notifications.
 
@@ -94,24 +94,13 @@ exists, update that row's `result` with a JSON object containing the actual
 Delete a pending row only after confirming Jira did not create the issue. Never
 clear the ledger simply to bypass a 409. Reconciliation is intentionally manual.
 
-Incident storage remains volatile; the timestamp in the ledger identity prevents
-recycled incident IDs after restart from inheriting an unrelated issue. Keep the
-ledger across backend restarts. This supports a single local backend installation;
-multiple hosts require a shared durable store. Keep the unauthenticated app local.
+Incident storage uses P1's configured MongoDB writer, or explicit volatile memory mode when disabled. The ledger identity includes the incident creation timestamp so recycled IDs cannot inherit unrelated references. Keep the local ledger across restarts; multiple hosts require shared durable reservations.
 
-## Person 1 coordination
+## Shared application and persistence
 
-No shared main.py edits were made. Person 1 can adopt registration after review:
+Start `backend.app:app`. The previous modernization and integrations wrappers alias this same app, including all P1/P2/P3 routes. No alternative server is needed for notifications.
 
-```python
-from backend.integrations.router import create_notification_router
-app.include_router(create_notification_router(_incidents, _lock))
-```
-
-Register exactly once, after storage initialization. When adopting this in main.py,
-load backend/.env at startup as integrations/app.py does, and run main:app rather
-than the wrapper. Replace the injected dict/lock interface when storage becomes
-durable. No Person 1 change is required to run the integration entry point today.
+The router reads through P1's canonical snapshot callback and publishes integration-only fields through `main.publish_notification`. Each accepted change checks the incident incarnation, preserves a confirmed Slack delivery, and queues its lifecycle event and snapshot under P1's lock. Database IO runs outside the lock. Retries retain the existing provider ledgers and do not create extra events for unchanged references.
 
 ## Validation
 

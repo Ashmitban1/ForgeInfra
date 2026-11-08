@@ -19,6 +19,7 @@ from backend.agents.review import ReviewService
 from backend.agents.review_router import create_review_router
 from backend.modernization.approval import ApprovalService
 from backend.modernization.approval_router import create_approval_router
+from backend.integrations.router import create_notification_router
 
 class _LifespanService:
     """Keep route references stable while giving each lifespan fresh workers.
@@ -121,3 +122,7 @@ app.include_router(create_modernization_router(service, investigation_service, r
 app.include_router(create_investigation_router(investigation_service, review_service, approval_service))
 app.include_router(create_review_router(review_service))
 app.include_router(create_approval_router(approval_service))
+app.include_router(create_notification_router(
+    main._incidents, main._lock, get_snapshot=main.get_incident_snapshot,
+    publish_result=main.publish_notification,
+))
