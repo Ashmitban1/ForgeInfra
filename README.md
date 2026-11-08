@@ -1,8 +1,8 @@
-# FactoryOS — HackUTD 2026
+# ForgeInfra — HackUTD 2026
 
-FactoryOS is a three-person proof-of-concept for data-center information reliability
+ForgeInfra is a three-person proof-of-concept for data-center information reliability
 and verified legacy-monitoring repairs. Read
-[the project handoff](docs/FACTORYOS_AGENT_HANDOFF.md) for the broader plan.
+[the project handoff](docs/ForgeInfra_AGENT_HANDOFF.md) for the broader plan.
 
 ## What is actually implemented
 
@@ -30,7 +30,7 @@ returns `UNKNOWN` / `DEGRADED`; deterministic `should_alert` remains independent
 A separate manually authored candidate can be verified with Docker-backed tests:
 
 ```sh
-docker build -t factoryos-monitor:local backend/modernization/container
+docker build -t ForgeInfra-monitor:local backend/modernization/container
 python -m backend.modernization.testing --incident-id INC-COOLING-001
 ```
 
@@ -62,7 +62,7 @@ clearing and recurring, invalidate previous reviews. See
 [the Gemini review guide](backend/agents/GEMINI_REVIEW.md).
 
 **Person 2 human gate:** Configure named reviewer bearer-token digests in
-`FACTORYOS_APPROVERS_JSON`, inspect GET `/api/incidents/{id}/approval`, then POST
+`ForgeInfra_APPROVERS_JSON`, inspect GET `/api/incidents/{id}/approval`, then POST
 APPROVE/REJECT against the exact candidate/package hashes. Decisions and frozen
 evidence use P1's locked canonical update and persistence queue. MongoDB approval
 requires durable readback; pending persistence returns 503 and blocks the gate.
@@ -71,7 +71,7 @@ See [the human approval API](docs/HUMAN_APPROVAL_API.md).
 
 ## Folders
 ```text
-FactoryOS/
+ForgeInfra/
 ├── .github/workflows/python-tests.yml
 ├── .env.example
 ├── .gitignore
@@ -87,7 +87,7 @@ FactoryOS/
 │   ├── modernization/          # P2: fixture adapter, candidate patch, Docker tests
 │   └── integrations/           # P3: Jira and Slack adapters; Solana pending
 ├── hardware/
-│   ├── arduino/factoryos_arduino/factoryos_arduino.ino
+│   ├── arduino/ForgeInfra_arduino/ForgeInfra_arduino.ino
 │   ├── serial_gateway.py
 │   └── simulator.py
 ├── frontend/
@@ -95,7 +95,7 @@ FactoryOS/
 │   ├── index.html
 │   └── src/{App.jsx,main.jsx,styles.css}
 ├── tests/test_api.py
-└── docs/{API_CONTRACT.md,TEAM_TASKS.md,GITHUB_PUSH.md,FACTORYOS_AGENT_HANDOFF.md}
+└── docs/{API_CONTRACT.md,TEAM_TASKS.md,GITHUB_PUSH.md,ForgeInfra_AGENT_HANDOFF.md}
 ```
 
 ## Run locally (Windows PowerShell)
@@ -138,7 +138,7 @@ Open http://127.0.0.1:5173. Requires Node.js 20+.
 
 ## Terminal 3 - Connect your actual ELEGOO UNO R3
 
-1. Open `hardware/arduino/factoryos_arduino/factoryos_arduino.ino` in Arduino IDE.
+1. Open `hardware/arduino/ForgeInfra_arduino/ForgeInfra_arduino.ino` in Arduino IDE.
 2. Install the Adafruit **DHT sensor library** and **Adafruit Unified Sensor**.
 3. For a *three-pin* DHT11 module labeled S/+/-: `S → D2`, `+ → 5V`, `- → GND`. For a two-pin tilt switch: one terminal to `D3`, other to `GND`. **Verify the actual board/module labels**, disconnect power during wiring. A bare DHT11 has a different layout.
 4. Upload sketch to Uno. Check Serial Monitor at **9600 baud**; close it before gateway.
