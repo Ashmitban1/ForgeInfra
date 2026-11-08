@@ -8,6 +8,12 @@ GitHub-ready **three-person team repository**. FactoryOS is a proof-of-concept f
 
 **Not yet implemented or verified:** physical Arduino connection; real legacy application modernization; Nemotron/Gemini; Jira/Slack; GitHub PR automation; Tiger Data/MongoDB; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software.
 
+**Person 2's runnable baseline:** `fixtures/legacy_monitor/monitor.py` is a
+standalone, team-authored temperature-only monitor with JSON samples, an execution
+adapter, and characterization tests. See [the fixture guide](fixtures/legacy_monitor/README.md).
+The cooling-fault defect is intentionally preserved; repairs and live backend
+integration are still pending.
+
 ## Folders
 ```text
 FactoryOS/
