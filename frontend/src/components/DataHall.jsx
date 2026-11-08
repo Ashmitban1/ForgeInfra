@@ -11,7 +11,7 @@ import { formatNumber } from '../lib/format.js';
 //  - state-change ring <- a device's derived health state differing from the previous poll
 // With reduced motion, packets, rings and pulses are not rendered; state is shown statically.
 
-const C = { ok: '#3fe0a0', fault: '#ff6677', review: '#ffc261', muted: '#5a6a92', info: '#52d6ff', idle: '#24325f' };
+const C = { ok: '#8cc83c', fault: '#ff7484', review: '#efbb70', muted: '#8796a4', info: '#5aa9ff', idle: '#303a44' };
 const STATE_COLOR = { fault: C.fault, review: C.review, nominal: C.ok, recovered: C.ok, stale: C.muted };
 const STAGE_COLOR = { done: C.ok, active: C.info, failed: C.fault, pending: C.muted, unknown: C.review };
 
@@ -49,7 +49,7 @@ function RackSilhouette({ device, x, width, now, history, ring, reduce }) {
     <g>
       <motion.rect
         x={x} y={y} width={width} height={h} rx={9}
-        fill="#0b1230" strokeWidth={1.5}
+        fill="#10171d" strokeWidth={1.5}
         initial={false} animate={{ stroke: color, filter: health.state === 'fault' ? `drop-shadow(0 0 10px ${color})` : 'drop-shadow(0 0 0px transparent)' }}
         transition={{ duration: 0.6 }}
         strokeDasharray={health.state === 'stale' ? '5 4' : undefined}
@@ -62,9 +62,9 @@ function RackSilhouette({ device, x, width, now, history, ring, reduce }) {
       )}
       {slots.map((slot, i) => (
         <g key={slot.id}>
-          <rect x={x + 10} y={y + 36 + i * 21} width={width - 20} height={14} rx={3} fill="#111b3d" />
+          <rect x={x + 10} y={y + 36 + i * 21} width={width - 20} height={14} rx={3} fill="#222c35" />
           {[0, 1, 2].map(k => (
-            <rect key={k} x={x + 16 + k * 7} y={y + 40 + i * 21} width={4} height={6} rx={1} fill="#1b2a55" />
+            <rect key={k} x={x + 16 + k * 7} y={y + 40 + i * 21} width={4} height={6} rx={1} fill="#44515c" />
           ))}
           <motion.circle
             cx={x + width - 20} cy={y + 43 + i * 21} r={4}
@@ -72,7 +72,7 @@ function RackSilhouette({ device, x, width, now, history, ring, reduce }) {
           />
         </g>
       ))}
-      <text x={x + width / 2} y={y + 20} textAnchor="middle" fill="#e8eefb" fontSize="12" fontWeight="700" fontFamily="ui-monospace, Menlo, monospace">
+      <text x={x + width / 2} y={y + 20} textAnchor="middle" fill="#f5f7f9" fontSize="12" fontWeight="700" fontFamily="ui-monospace, Menlo, monospace">
         {device.device_id}
       </text>
       <text x={x + width / 2} y={y + h + 17} textAnchor="middle" fill={color} fontSize="12" fontWeight="700">
@@ -111,11 +111,11 @@ function Node({ id, label, sub, color, active, reduce }) {
         />
       )}
       <motion.circle
-        cx={x} cy={y} r={NODE_R} fill="#0b1230" strokeWidth={2}
+        cx={x} cy={y} r={NODE_R} fill="#10171d" strokeWidth={2}
         initial={false} animate={{ stroke: color }} transition={{ duration: 0.5 }}
       />
       <motion.circle cx={x} cy={y} r={7} initial={false} animate={{ fill: color }} transition={{ duration: 0.5 }} />
-      <text x={x} y={y + NODE_R + 17} textAnchor="middle" fill="#e8eefb" fontSize="12" fontWeight="700">{label}</text>
+      <text x={x} y={y + NODE_R + 17} textAnchor="middle" fill="#f5f7f9" fontSize="12" fontWeight="700">{label}</text>
       <text x={x} y={y + NODE_R + 32} textAnchor="middle" fill="#93a1c0" fontSize="11">{sub}</text>
     </g>
   );
@@ -192,8 +192,8 @@ export default function DataHall({ devices, history, now, incidents, telemetryEr
         <svg className="hall-svg" viewBox={`0 0 ${W} 400`} role="img" aria-label={summary}>
           <defs>
             <linearGradient id="floor" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0" stopColor="#52d6ff" stopOpacity="0.07" />
-              <stop offset="1" stopColor="#52d6ff" stopOpacity="0" />
+              <stop offset="0" stopColor="#5aa9ff" stopOpacity="0.07" />
+              <stop offset="1" stopColor="#5aa9ff" stopOpacity="0" />
             </linearGradient>
           </defs>
           <rect x="0" y="0" width={W} height="215" fill="url(#floor)" rx="12" />
@@ -226,7 +226,7 @@ export default function DataHall({ devices, history, now, incidents, telemetryEr
                 {flowing && (
                   <motion.line
                     x1={a.x + NODE_R} y1={a.y} x2={b.x - NODE_R} y2={b.y}
-                    stroke="#0b1230" strokeWidth={2} strokeDasharray="6 10"
+                    stroke="#10171d" strokeWidth={2} strokeDasharray="6 10"
                     animate={{ strokeDashoffset: [0, -32] }} transition={{ repeat: Infinity, duration: 1.4, ease: 'linear' }}
                     opacity={0.55}
                   />

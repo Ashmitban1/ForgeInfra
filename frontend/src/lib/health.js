@@ -99,9 +99,8 @@ export function describeToolCall(call, index) {
 
 const TEST_CALL = /test|regress|verif/i;
 
-// "Verified" is never assumed. It requires (a) at least one backend-reported tool call that looks like a
-// test/verification run, all with a success status, and (b) the live rack currently reading nominal.
-// API v1 has no repair/verification route, so most incidents will correctly stay 'unverified'.
+// API v1 has no per-incident acceptance-test result contract. Tool-call completion
+// proves execution only, never test success or a repaired physical system.
 export function repairVerification(incident, live) {
   const calls = Array.isArray(incident?.investigation?.tool_calls) ? incident.investigation.tool_calls : [];
   const tests = calls
@@ -110,24 +109,17 @@ export function repairVerification(incident, live) {
     .map(c => ({ name: c.name, status: c.status, kind: classifyStatus(c.status) }));
   const failed = tests.some(t => t.kind === 'failed');
   const running = tests.some(t => t.kind === 'active');
-  const allPassed = tests.length > 0 && tests.every(t => t.kind === 'done');
   const liveNominal = Boolean(live) && !live.stale && live.level === 'nominal';
   let state = 'unverified';
-  let detail = 'No test or verification tool call has been reported by the backend for this incident.';
+  let detail = 'No per-incident acceptance-test evidence is available. Repair verification is not connected in API v1.';
   if (failed) {
     state = 'failed';
-    detail = 'A backend-reported verification step failed.';
-  } else if (running || (tests.length && !allPassed)) {
+    detail = 'A verification tool execution failed. No repair success is inferred.';
+  } else if (running) {
     state = 'running';
-    detail = 'Verification steps are reported but not all have completed successfully.';
-  } else if (allPassed && liveNominal) {
-    state = 'verified';
-    detail = 'Backend-reported tests succeeded and the rack is currently reading nominal.';
-  } else if (allPassed) {
-    state = 'tests-passed';
-    detail = live
-      ? 'Backend-reported tests succeeded, but the rack is not currently reading nominal (or its data is stale).'
-      : 'Backend-reported tests succeeded; no live telemetry for this device to confirm recovery.';
+    detail = 'A verification tool execution is running. Test outcomes are not yet established.';
+  } else if (tests.some(t => t.kind === 'done')) {
+    detail = 'A test tool finished, but completion alone does not establish passing acceptance tests. Repair remains unverified.';
   }
   return { state, detail, tests, liveNominal };
 }

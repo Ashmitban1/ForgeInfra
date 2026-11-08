@@ -1,0 +1,96 @@
+// Architecture examples, never runtime operational data. Status reflects this checkout.
+export const phases = [
+  {
+    id: 'observe', title: 'Observe', caption: 'Every signal has a source.', icon: 'signal',
+    input: 'DHT11 temperature / humidity + a simulated fault switch',
+    processing: 'The serial gateway or simulator submits timestamped readings to FastAPI.',
+    output: '29.4°C · 54% RH · cooling_fault=true',
+    technology: 'Arduino Uno · DHT11 · Python · FastAPI',
+    status: 'Implemented locally',
+    note: 'Sensor and gateway code exists. The cooling-fault switch is deliberately simulated; FactoryOS does not control cooling equipment. Host CPU/RAM via psutil is a separate planned feed in this checkout.',
+    tools: [
+      ['Arduino Uno', 'Physical sensor gateway firmware; hardware connection must be verified per setup.'],
+      ['FastAPI', 'Implemented telemetry ingestion with timestamp and sequence validation.'],
+      ['DHT11', 'Temperature and humidity sensor; readings differ from the simulated fault switch.'],
+      ['Serial gateway', 'Python USB serial bridge to the telemetry API.'],
+      ['psutil', 'Planned separate host CPU/RAM feed; no host metrics API in this checkout.'],
+    ],
+  },
+  {
+    id: 'detect', title: 'Detect', caption: 'Question the monitoring result.', icon: 'compare',
+    input: '29.4°C / cooling_fault=true',
+    processing: 'Compare the legacy result with an independent deterministic reliability check.',
+    output: 'NORMAL ≠ WARNING → legacy_missed_fault',
+    technology: 'Python · reliability rules · FastAPI',
+    status: 'Implemented locally',
+    note: 'Detection is independent of AI availability. Live ingestion currently uses the team-authored placeholder legacy function, not Northmark software. MongoDB Atlas is planned in this checkout; canonical incidents currently live in memory.',
+    tools: [
+      ['Legacy monitor', 'Deliberately faulty team-authored placeholder. No Northmark production code.'],
+      ['Reliability engine', 'Independent deterministic rules evaluate the same reading.'],
+      ['Requirements', 'Fault and timestamp requirements define the expected warning.'],
+      ['FastAPI', 'Creates/reuses an open incident for the device.'],
+      ['MongoDB Atlas', 'Planned canonical incident persistence; current storage is in-memory.'],
+    ],
+  },
+  {
+    id: 'investigate', title: 'Investigate', caption: 'Turn evidence into understanding.', icon: 'code',
+    input: 'Incident evidence + legacy source + monitoring requirements',
+    processing: 'Nemotron is intended to call inspection tools; Gemini independently reviews the diagnosis and risks.',
+    output: 'Illustrative diagnosis: cooling_fault is ignored',
+    technology: 'NVIDIA Nemotron · Gemini · tool registry',
+    status: 'Awaiting integration',
+    note: 'Agent modules are stubs in this checkout. The example is an explanation of the intended investigation, not a model response or successful tool call. Humans retain operational decisions.',
+    tools: [
+      ['NVIDIA Nemotron', 'Planned tool-based investigation and structured findings.'],
+      ['Gemini', 'Planned independent review of evidence, candidate changes and risks.'],
+      ['Tool registry', 'Planned controlled evidence and source-inspection functions.'],
+      ['Source inspection', 'Intended inspection of the representative legacy fixture.'],
+      ['Incident evidence', 'Existing incident GET API supplies telemetry and mismatch reasons.'],
+    ],
+  },
+  {
+    id: 'verify', title: 'Verify', caption: 'A change needs proof.', icon: 'verify',
+    input: 'Original source + candidate + captured incident input',
+    processing: 'Run isolated regression tests and replay the fault. Preserve source, diff and test evidence.',
+    output: 'Illustrative: NORMAL → WARNING at 29.4°C with a fault',
+    technology: 'Docker · pytest · source diff · snapshot replay',
+    status: 'Awaiting integration',
+    note: 'The handoff describes a manually authored repair example, not an AI-generated fix. This checkout has no connected repair endpoint or per-incident Docker results. No pass totals are presented as verified. A completed job is not proof of passing tests; passing tests are not approval, deployment, or equipment recovery.',
+    tools: [
+      ['Docker', 'Planned isolated candidate execution; no connected job API here.'],
+      ['pytest', 'Backend tests exist; per-incident candidate regression results are not supplied.'],
+      ['Code diff', 'A source change must be linked to actual revision evidence.'],
+      ['Snapshot replay', 'Intended replay of the incident input against original and candidate.'],
+      ['Acceptance tests', 'Independent requirements, separate from a job completion status.'],
+    ],
+  },
+  {
+    id: 'act', title: 'Act & learn', caption: 'Give people a clearer next step.', icon: 'response',
+    input: 'Incident + Jira reference + available engineering evidence',
+    processing: 'Coordinate human response through Jira and Slack; keep evidence and review state visible.',
+    output: 'Ticket created · message delivered · incident still open',
+    technology: 'Jira · Slack · FactoryOS · shared data layer',
+    status: 'Notifications implemented',
+    note: 'Jira creation and generic Slack connectivity were live-verified separately. The combined adapter is implemented and mocked-tested; a fresh combined live delivery remains unverified. Notifications can run immediately after detection, without waiting for agents or repair. Approval, Solana and deployment are not implemented.',
+    tools: [
+      ['Jira', 'Real Task creation confirmed previously; actual incident keys appear only in operations.'],
+      ['Slack', 'Real bot connectivity verified; delivery state requires an actual provider confirmation.'],
+      ['FactoryOS', 'Working incident investigation and notification UI.'],
+      ['Human review', 'Approval controls remain disabled until a supported backend exists.'],
+      ['Solana audit', 'Optional planned audit reference, not implemented.'],
+    ],
+  },
+];
+
+export const personas = [
+  { id: 'operator', title: 'Data Center Operator', keyword: 'Monitor', icon: 'signal', description: 'Read infrastructure signals. Catch the warning others missed.', destination: 'Mission Control', problems: [0, 1], route: 'mission' },
+  { id: 'responder', title: 'Incident Responder', keyword: 'Respond', icon: 'response', description: 'Follow the evidence. Coordinate a clear operational response.', destination: 'Incident Investigation', problems: [0, 2], route: 'investigate' },
+  { id: 'engineer', title: 'Software Engineer', keyword: 'Modernize', icon: 'code', description: 'Inspect the logic. Review findings and candidate evidence.', destination: 'Engineering evidence', problems: [1, 3], route: 'engineering' },
+  { id: 'manager', title: 'IT Manager / Operations Lead', keyword: 'Oversee', icon: 'layers', description: 'Understand incident risk, handoffs and verification state.', destination: 'Operational oversight', problems: [1, 2], route: 'operations' },
+];
+export const problems = [
+  ['Missed warnings', 'Incomplete monitoring logic can overlook a critical signal.', 'Independent reliability verification.'],
+  ['Conflicting information', 'The same event can produce two different conclusions.', 'Explicit comparison. One incident record.'],
+  ['Slow investigation & handoffs', 'Context gets lost between monitoring, source code and tickets.', 'Connected evidence, Jira and Slack.'],
+  ['Risky legacy modernization', 'An untested correction can introduce another failure.', 'Independent tests, evidence and human review.'],
+];

@@ -76,7 +76,7 @@ export default function RepairVerification({ verification, deviceId }) {
           <p className="muted">{verification.detail}</p>
         </div>
       </motion.div>
-      <ul className="test-list" aria-label="Backend-reported verification steps">
+      <ul className="test-list" aria-label="Backend-reported tool execution states">
         {verification.tests.length === 0 ? (
           <li><span className="muted">No verification steps reported for this incident.</span></li>
         ) : verification.tests.map((t, i) => (
@@ -91,8 +91,9 @@ export default function RepairVerification({ verification, deviceId }) {
         </li>
       </ul>
       <p className="note">
-        Derived only from backend tool-call statuses and the latest telemetry. API v1 has no repair route, so this stays
-        “Not verified” until the backend reports passing tests.
+        Tool execution status is not an acceptance-test outcome. API v1 supplies no candidate regression evidence,
+        so no before/after pass totals are inferred. A nominal reading does not prove physical equipment recovery.
+        Verification, human approval and deployment are separate decisions.
       </p>
     </>
   );

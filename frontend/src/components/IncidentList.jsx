@@ -2,7 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useChangedKeys } from '../hooks/useLiveEvents.js';
 import { classifyStatus } from '../lib/health.js';
 import { formatTime } from '../lib/format.js';
-import { investigateHref } from '../router.js';
+import { workspaceHref } from '../router.js';
 import { Badge, SkeletonRows, StateMessage } from './ui.jsx';
 
 const SEVERITY_TONE = { HIGH: 'fault', REVIEW: 'review' };
@@ -16,7 +16,7 @@ const keyOf = i => i.incident_id;
 const signatureOf = i => [i.status, i.investigation?.status, i.decision_review?.status,
   i.investigation?.tool_calls?.length ?? 0, i.integrations?.jira_key, i.integrations?.slack_message_id].join('|');
 
-export default function IncidentList({ state, selectedId, linkLabel = 'Investigate' }) {
+export default function IncidentList({ state, selectedId, linkLabel = 'Investigate', workspace = 'investigate' }) {
   const { data, error, loading, refresh } = state;
   const reduce = useReducedMotion();
   // Highlights an incident only when the API reports a real change in its status, tool calls or integrations.
@@ -60,7 +60,7 @@ export default function IncidentList({ state, selectedId, linkLabel = 'Investiga
               >
                 <a
                   className={`incident ${selected ? 'is-selected' : ''}`}
-                  href={investigateHref(incident.incident_id)}
+                  href={workspaceHref(workspace, incident.incident_id)}
                   aria-current={selected ? 'true' : undefined}
                 >
                   {changed[incident.incident_id] && !reduce && (

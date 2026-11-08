@@ -1,35 +1,110 @@
-# Person 3 — FactoryOS dashboard
+# FactoryOS — Person 3 frontend
 
-Two screens, both read from the FastAPI backend (API v1, `docs/API_CONTRACT.md`):
+React 19 + Vite + Motion. No additional UI framework, font download, rendering
+engine, or runtime dependency was added for the redesign.
 
-- **Mission Control** (`#/`): KPIs, rack health, current telemetry + session sparkline, source-mismatch evidence, live incidents, event timeline. Uses `GET /api/telemetry/latest` and `GET /api/incidents` (polled every 3s).
-- **Incident Investigation** (`#/investigate/{incident_id}`): incident details, progress path, Nemotron tool activity, Gemini recommendation, Jira/Slack IDs. Uses `GET /api/incidents/{id}`.
-
-Scaffolded, clearly labeled "Sample" or "Scaffold", and not backed by the API yet: code diff, regression tests, approval buttons (disabled). No POST requests are made.
+## Start locally
 
 ```sh
-# repo root: run FastAPI, then in another terminal
-python hardware/simulator.py --mode fault
-cd frontend && npm install && npm run dev   # http://127.0.0.1:5173
+# From repository root; Node.js 20+
+npm --prefix frontend install
+npm --prefix frontend run dev
 ```
 
-## Demo mode
+Open **http://127.0.0.1:5173/** for the product overview. The existing working
+application remains available at **http://127.0.0.1:5173/#/**.
 
-While Person 1/2 work is unfinished, click **Demo data: on** in the header (or open `http://127.0.0.1:5173/?demo=1`; `?demo=0` turns it off). It serves hardcoded fixtures from `src/demo/fixtures.js` in the v1 contract shape, with a permanent "Demo mode" banner. Racks cover fault, nominal, over-temperature and stale states; RACK-02 faults for 20s each minute so "Recovered" appears. It only replaces the three GET calls and never runs unless switched on.
+For live operational data, run the existing notification-enabled backend separately:
 
-## Honesty rules
+```sh
+source .venv/bin/activate
+python -m uvicorn backend.integrations.app:app --reload
+```
 
-- Rack state, fan, LEDs, and progress-path animations derive only from API fields. A reading older than 90s (mirrors `STALE_AFTER_SECONDS` in `backend/reliability.py`) is shown as "No recent data".
-- "Recovered" and the temperature chart use readings *this browser tab* observed while polling; the API has no history endpoint.
-- Unknown agent statuses are shown verbatim. Only `PENDING` is defined in v1.
-- Animations use Motion for React with `reducedMotion="user"`; infinite animations are also gated on `useReducedMotion`, and CSS honors `prefers-reduced-motion`.
+The landing page works without a backend and makes no operational polling requests.
+It never creates incidents or sends notifications. Real provider actions require
+an explicit click within Investigation. Backend credentials remain in backend/.env;
+never use secret VITE_* variables. VITE_API_BASE_URL is a public backend address.
 
-`VITE_API_BASE_URL` (see `.env.example`) selects the backend. Never put secret tokens in `VITE_*` variables; they are exposed to the browser.
+## Routes
 
-## Cinematic Mission Control (animation layer)
+| URL fragment | Working destination |
+| --- | --- |
+| No fragment | New public product overview |
+| #overview, #architecture, #people, #mission, #workspaces | Product sections |
+| #/ | Original Mission Control route, preserved |
+| #/mission | Mission Control alias |
+| #/investigate/{incident_id} | Original Incident Investigation route, preserved |
+| #/investigate | Selects an available incident, or shows an empty/error state |
+| #/engineering/{incident_id} | Existing Investigation with engineering context/evidence navigation |
+| #/operations | Existing Mission Control with current incident and notification summary |
 
-- **Data hall** (`components/DataHall.jsx`): SVG racks plus the pipeline Hardware feed → API → Legacy / Independent check → Incident → Nemotron → Gemini → Repair. Rack LEDs and stage nodes come from API fields; a data packet flies only when a *new* reading (`sequence`/`received_at`) arrives; a ring flashes only when a rack's derived state changes between polls (`hooks/useLiveEvents.js`). The first poll seeds a baseline, so page loads never replay history.
-- **Incident progression**: progress-path packets, incident-card highlights, and Nemotron tool-call entrances fire only when the API reports a changed status or a new tool call.
-- **Repair verification** (`lib/health.js#repairVerification`): "Verified" requires backend-reported test/verification tool calls that all succeeded *and* the live rack reading nominal. Otherwise it shows "Not verified" (the v1 default).
-- **Demo data** is labeled in the hall, header, and banner. Demo INC-COOLING-002 advances through stages on a 90s loop for demonstration only.
-- Reduced motion: packets, rings, pulses, scans and number tweens are not rendered; state is still shown statically.
+Role selection is navigation, never authentication or authorization. Workspaces
+reuse incident storage, polling, and existing controls. Selected incident context
+is retained within the SPA as users change workspaces, including via the overview.
+Explicit incident URLs support reload and browser history. Bare workspace URLs on
+fresh load use the existing first-incident selection behavior. Hash routes avoid
+server rewrite requirements and preserve existing bookmarks.
+
+## Product overview
+
+- Original SVG geometric F emblem, horizontal wordmark, and compact SVG favicon.
+- Silver/graphite design tokens shared with the operational shell and live cards.
+- Responsive navigation, large hero, and pointer-responsive SVG server sculpture.
+- Five-phase architecture mind map with dotted phase boundaries, surrounding tool
+  nodes, example miniatures, sequential entrances, and connector drawing.
+- Horizontal exploration controls on desktop/tablet; stacked phases on mobile.
+- A separate Detect → Jira/Slack branch shows notifications need not wait for AI
+  or candidate tests. Shared data rail sits below all phases.
+- Click/focus-accessible phase and tool details explain Input / Processing /
+  Output / Technology and actual implementation limits.
+- Persona buttons highlight related operational challenges. Workspace links are
+  functional and use existing pages, not fabricated role applications.
+- Closing mission CTA and overview links throughout the application.
+- Motion honors prefers-reduced-motion. Public page has no operational polling;
+  its code is lazy-loaded separately from the operational app.
+
+## Data truthfulness in this checkout
+
+Backend storage, agents, and modernization directories currently contain stubs.
+Live telemetry ingestion/deterministic incident checks and notification adapters
+exist. Jira creation and generic Slack connectivity were verified in earlier work;
+a fresh combined live delivery is not claimed here. MongoDB Atlas, Tiger Data,
+Nemotron, Gemini orchestration, connected Docker candidate jobs, approval, and
+Solana are labeled planned/unsupported where appropriate.
+
+Architecture readings/code are explicitly labeled illustrative, not live results.
+The monitor is a deliberately faulty team-authored placeholder, not Northmark
+production code. Cooling-fault flags are simulated, separate from physical DHT11
+measurements. Host metrics have no API in this checkout and are not fabricated.
+
+Repair verification was made more conservative: tool execution SUCCESS plus a
+nominal rack reading cannot establish passing acceptance tests. Without actual
+per-incident acceptance evidence, it remains unverified and shows no original/
+candidate pass totals. A completed job, verified repair, human approval, production
+deployment, and physical equipment recovery are different claims.
+
+## Demo mode and retained functionality
+
+`?demo=1` enables existing explicitly labeled demo fixtures in the operational app;
+`?demo=0` disables them. The header's Demo data button also toggles mode. Demo
+Jira/Slack submissions remain disabled. The public product examples are always
+architecture illustrations, independent of this setting.
+
+The existing DataHall, rack selection, telemetry sparklines, event timeline,
+incident list, investigation, source evidence, provider results, loading/error
+states, and state-driven animations remain. The API contract and backend code
+were not modified by this frontend redesign.
+
+## Verification
+
+```sh
+node --test frontend/tests/product.test.mjs
+npm --prefix frontend run build
+.venv/bin/python -m pytest -q
+```
+
+The Node tests cover route compatibility, persona destinations, shared incident
+URL mapping, conservative verification semantics, and architecture truthfulness.
+Browser QA uses mocked backend data only; it creates no real provider records.
+See `docs/PERSON_3_FRONTEND_REDESIGN.md` for results and limits.

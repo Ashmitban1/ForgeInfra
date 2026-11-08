@@ -77,7 +77,7 @@ export default function MissionControl({ telemetry, incidents, history, now }) {
         <span className="eyebrow">Mission Control</span>
         <h1>Data-center reliability</h1>
         <p className="muted">
-          Compares hardware telemetry against the legacy monitor. Everything below is read from the FactoryOS API.
+          Compares hardware telemetry against the legacy monitor. Operational values come from the API; Demo mode uses explicitly labeled fixtures.
         </p>
       </div>
 

@@ -13,7 +13,7 @@ import { usePolling } from '../hooks/usePolling.js';
 import { formatDateTime } from '../lib/format.js';
 import RepairVerification from '../components/investigation/RepairVerification.jsx';
 import { deviceHealth, pathSteps, repairVerification } from '../lib/health.js';
-import { missionHref, replaceHash, investigateHref } from '../router.js';
+import { missionHref, replaceHash, workspaceHref } from '../router.js';
 
 function IncidentDetail({ incidentId, telemetry, history, now }) {
   const detail = usePolling(signal => getIncident(incidentId, signal));
@@ -60,6 +60,7 @@ function IncidentDetail({ incidentId, telemetry, history, now }) {
           <Fact label="Schema" mono>{incident.schema_version}</Fact>
         </dl>
         <ProgressPath steps={steps} />
+        <p className="note">Jira and Slack response can run immediately; investigation and repair do not gate notifications. A notification does not resolve the incident.</p>
       </Panel>
 
       <div className="split">
@@ -97,18 +98,18 @@ function IncidentDetail({ incidentId, telemetry, history, now }) {
   );
 }
 
-export default function IncidentInvestigation({ incidentId, incidents, telemetry, history, now }) {
+export default function IncidentInvestigation({ incidentId, incidents, telemetry, history, now, workspace = 'investigate' }) {
   const firstId = incidents.data?.length ? sortIncidents(incidents.data)[0].incident_id : null;
 
   useEffect(() => {
-    if (!incidentId && firstId) replaceHash(investigateHref(firstId));
-  }, [incidentId, firstId]);
+    if (!incidentId && firstId) replaceHash(workspaceHref(workspace, firstId));
+  }, [incidentId, firstId, workspace]);
 
   return (
     <div className="page">
       <div className="page-title">
         <span className="eyebrow">Incident Investigation</span>
-        <h1>Investigate an incident</h1>
+        <h1>{workspace === 'engineering' ? 'Evidence before a change.' : 'Understand the incident.'}</h1>
         <p className="muted">
           Details come from <code>GET /api/incidents/{'{id}'}</code>. Agent and repair stages stay pending until the backend reports them.
         </p>
@@ -116,7 +117,7 @@ export default function IncidentInvestigation({ incidentId, incidents, telemetry
       <div className="grid-investigate">
         <aside aria-label="Incident selector" className="selector">
           <Panel title="Incidents" eyebrow="Select one" headingId="sel-h">
-            <IncidentList state={incidents} selectedId={incidentId} linkLabel="Open" />
+            <IncidentList state={incidents} workspace={workspace} selectedId={incidentId} linkLabel="Open" />
           </Panel>
         </aside>
         <div>

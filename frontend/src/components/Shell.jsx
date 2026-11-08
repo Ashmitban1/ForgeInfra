@@ -1,7 +1,8 @@
 import { API_BASE } from '../api.js';
 import { isDemoMode, setDemoMode } from '../demo/fixtures.js';
 import { formatTime } from '../lib/format.js';
-import { investigateHref, missionHref } from '../router.js';
+import { landingHref, workspaceHref, missionHref } from '../router.js';
+import FactoryOSLogo from './brand/FactoryOSLogo.jsx';
 
 function connectionState({ loading, error, updatedAt }, demo) {
   if (demo) return { tone: 'demo', label: 'Demo data' };
@@ -16,19 +17,15 @@ export default function Shell({ route, polling, children }) {
   const conn = connectionState(polling, demo);
   const nav = [
     { id: 'mission', label: 'Mission Control', href: missionHref },
-    { id: 'investigate', label: 'Incident Investigation', href: investigateHref(route.incidentId) },
+    { id: 'investigate', label: 'Incident Investigation', href: workspaceHref('investigate', route.incidentId) },
+    { id: 'engineering', label: 'Engineering', href: workspaceHref('engineering', route.incidentId) },
+    { id: 'operations', label: 'Oversight', href: workspaceHref('operations') },
   ];
   return (
     <div className="shell">
       <a className="skip-link" href="#main">Skip to main content</a>
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">◈</span>
-          <div>
-            <strong>FactoryOS</strong>
-            <span className="eyebrow">HackUTD 2026 · reliability console</span>
-          </div>
-        </div>
+        <a className="brand app-brand" href={landingHref} aria-label="FactoryOS product overview"><FactoryOSLogo /><span className="eyebrow">OPERATIONS WORKSPACE</span></a>
         <nav aria-label="Primary">
           {nav.map(item => (
             <a key={item.id} href={item.href} aria-current={route.name === item.id ? 'page' : undefined}>
