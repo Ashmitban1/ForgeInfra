@@ -108,3 +108,27 @@ The Node tests cover route compatibility, persona destinations, shared incident
 URL mapping, conservative verification semantics, and architecture truthfulness.
 Browser QA uses mocked backend data only; it creates no real provider records.
 See `docs/PERSON_3_FRONTEND_REDESIGN.md` for results and limits.
+
+## Workspace themes
+
+Route-scoped themes live in `src/workspace-themes.css`, selected by the existing
+route name on `Shell` (`data-workspace`). No routes or capabilities were renamed.
+
+| Route | Theme | Existing purpose |
+| --- | --- | --- |
+| #/ and #/mission | Navy/graphite/silver with cyan | Mission Control |
+| #/investigate/{id} | NVIDIA-inspired green/black | Nemotron investigation and incident response |
+| #/engineering/{id} | Sapphire/cobalt/royal blue | Gemini review and repair evidence |
+| #/operations | Graphite with restrained red/blue/yellow | Oversight and notification summary |
+
+Shared tokens: `--workspace-accent`, `--workspace-accent-rgb`,
+`--workspace-bright`, `--workspace-deep`, `--workspace-surface`,
+`--workspace-base`, `--workspace-line`, `--workspace-button`,
+`--workspace-button-text`, `--workspace-focus`. Oversight additionally defines
+`--integration-red`, `--integration-blue`, and `--integration-yellow`.
+
+Accent colors affect navigation, focus, selection, tool activity and evidence
+surfaces. Semantic error/warning/success tokens are unchanged. The existing
+Oversight view is not a separate integration-management backend; Jira/Slack actions
+remain in Investigation. Track styling does not imply provider availability or
+sponsor endorsement. Reduced-motion preferences apply to theme transitions.

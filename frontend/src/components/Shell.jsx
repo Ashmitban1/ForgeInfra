@@ -22,7 +22,7 @@ export default function Shell({ route, polling, children }) {
     { id: 'operations', label: 'Oversight', href: workspaceHref('operations') },
   ];
   return (
-    <div className="shell">
+    <div className="shell" data-workspace={route.name}>
       <a className="skip-link" href="#main">Skip to main content</a>
       <header className="topbar">
         <a className="brand app-brand" href={landingHref} aria-label="FactoryOS product overview"><FactoryOSLogo /><span className="eyebrow">OPERATIONS WORKSPACE</span></a>
