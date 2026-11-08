@@ -7,6 +7,7 @@ import sqlite3
 from fastapi import APIRouter, HTTPException
 
 from backend.integrations.jira import configuration, create_issue
+from backend.integrations.slack import deliver
 
 DEFAULT_LEDGER = Path(__file__).resolve().parents[2] / '.factoryos-jira.sqlite3'
 
@@ -14,12 +15,19 @@ DEFAULT_LEDGER = Path(__file__).resolve().parents[2] / '.factoryos-jira.sqlite3'
 def create_notification_router(incidents: dict, storage_lock, ledger_path=DEFAULT_LEDGER) -> APIRouter:
     router = APIRouter()
 
-    @router.post('/api/incidents/{incident_id}/notify')
-    def notify(incident_id: str):
+    @router.get('/api/integrations/capabilities')
+    def capabilities():
+        return {'jira': {'notify': True}, 'slack': {'notify': True}}
+
+    def ensure_jira(incident_id: str):
         with storage_lock:
             if incident_id not in incidents:
                 raise HTTPException(404, 'Incident not found')
             incident = deepcopy(incidents[incident_id])
+        reference = incident.get('integrations', {})
+        if all(reference.get(key) for key in ('jira_key', 'jira_id', 'jira_url')):
+            return {'incident_id': incident_id, 'provider': 'jira', 'already_exists': True,
+                    **{key: reference[key] for key in ('jira_key', 'jira_id', 'jira_url')}}
         config = configuration()
         # created_at prevents reused volatile incident IDs from colliding after restart.
         identity = json.dumps([config[0], config[3], incident_id, incident['created_at']])
@@ -56,5 +64,22 @@ def create_notification_router(incidents: dict, storage_lock, ledger_path=DEFAUL
             incidents[incident_id]['integrations'].update(result)
         return {'incident_id': incident_id, 'provider': 'jira',
                 'already_exists': already_exists, **result}
+
+    @router.post('/api/incidents/{incident_id}/notify')
+    def notify(incident_id: str):
+        jira = ensure_jira(incident_id)
+        with storage_lock:
+            incident = deepcopy(incidents[incident_id])
+        slack = deliver(incident, jira, ledger_path)
+        with storage_lock:
+            # Delivery references are always from Slack confirmation or a retained ledger.
+            current = incidents[incident_id]['integrations']
+            if current.get('slack_status') == 'DELIVERED' and slack['slack_status'] != 'DELIVERED':
+                slack = {key: value for key, value in current.items() if key.startswith('slack_')}
+            incidents[incident_id]['integrations'].update(slack)
+            integrations = deepcopy(incidents[incident_id]['integrations'])
+        return {**jira, **slack,
+                'notification_status': 'DELIVERED' if slack['slack_status'] == 'DELIVERED' else 'PARTIAL',
+                'integrations': integrations}
 
     return router

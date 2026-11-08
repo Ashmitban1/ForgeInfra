@@ -19,3 +19,5 @@ frontend/dist/
 .idea/
 
 .factoryos-jira.sqlite3*
+
+.factoryos-jira-live.json

@@ -6,7 +6,7 @@ GitHub-ready **three-person team repository**. FactoryOS is a proof-of-concept f
 
 ✅ FastAPI telemetry API, deterministic mismatch checks, simple in-memory incidents, basic tests; ✅ Arduino UNO sketch + serial gateway + simulator; ✅ minimal React/Vite dashboard reading backend data; ✅ GitHub Actions Python test workflow.
 
-**Not yet implemented or verified:** physical Arduino connection; real legacy application modernization; Nemotron/Gemini; Slack; GitHub PR automation; Tiger Data/MongoDB; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software.
+**Not yet implemented or verified:** physical Arduino connection; real legacy application modernization; Nemotron/Gemini; GitHub PR automation; Tiger Data/MongoDB; Solana; Vultr; authenticated production deployment. `legacy_monitor_stub` is only a controlled example, never Northmark's actual software.
 
 ## Folders
 ```text
@@ -84,4 +84,6 @@ The backend currently has **no authentication** and uses **in-memory** storage. 
 
 ## Jira integration
 
-Jira Cloud Task creation is implemented with mocked API validation; live KAN verification requires local credentials. Use `python -m uvicorn backend.integrations.app:app --reload` for the notification-enabled backend. See [Jira setup and Person 1 handoff](backend/integrations/README.md) for backend/.env configuration, duplicate prevention, API examples, and frontend steps.
+Jira Cloud Task creation is implemented and live-verified as KAN-4, including duplicate prevention. Local backend credentials are required to create further issues. Use `python -m uvicorn backend.integrations.app:app --reload` for the notification-enabled backend. See [Jira setup and Person 1 handoff](backend/integrations/README.md) for backend/.env configuration, duplicate prevention, API examples, and frontend steps.
+
+Slack incident delivery now follows Jira in POST notify, with durable retry tracking and partial-success reporting in Investigation. Mocked tests cover the combined workflow; live incident delivery awaits explicit approval. See backend/integrations/README.md for setup and reconciliation.

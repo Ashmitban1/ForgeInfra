@@ -13,6 +13,8 @@ from backend.integrations.router import create_notification_router
 
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
+    monkeypatch.delenv('SLACK_BOT_TOKEN', raising=False)
+    monkeypatch.delenv('SLACK_CHANNEL_ID', raising=False)
     for name, value in {'JIRA_BASE_URL': 'https://example.atlassian.net',
                         'JIRA_EMAIL': 'test@example.com', 'JIRA_API_TOKEN': 'secret-test-token',
                         'JIRA_PROJECT_KEY': 'KAN'}.items():
@@ -121,3 +123,29 @@ def test_concurrent_requests_do_not_duplicate(setup):
         responses = list(pool.map(lambda _: notify(client), range(2)))
     assert all(r.status_code in (200, 409) for r in responses)
     post.assert_called_once()
+
+
+def test_capability_is_available_without_exposing_configuration(setup):
+    client, _, post, _ = setup
+    response = client.get('/api/integrations/capabilities')
+    assert response.json() == {'jira': {'notify': True}, 'slack': {'notify': True}}
+    post.assert_not_called()
+
+
+def test_existing_reference_works_without_credentials(setup, monkeypatch):
+    client, records, post, _ = setup
+    records['INC-TEST']['integrations'].update(
+        jira_key='KAN-9', jira_id='9', jira_url='https://example.atlassian.net/browse/KAN-9')
+    monkeypatch.delenv('JIRA_API_TOKEN')
+    assert notify(client).json()['already_exists'] is True
+    post.assert_not_called()
+
+
+@pytest.mark.parametrize('base', ['http://example.atlassian.net', 'https://[invalid',
+                                  'https://example.atlassian.net.evil.com',
+                                  'https://example.atlassian.net:abc'])
+def test_invalid_base_url_is_actionable(setup, monkeypatch, base):
+    client, _, post, _ = setup
+    monkeypatch.setenv('JIRA_BASE_URL', base)
+    assert notify(client).status_code == 503
+    post.assert_not_called()

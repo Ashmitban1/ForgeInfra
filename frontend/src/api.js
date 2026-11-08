@@ -61,11 +61,36 @@ export async function getIncident(incidentId, signal) {
   return body;
 }
 
-export async function createJiraIssue(incidentId) {
+export async function notifyIncident(incidentId) {
   if (isDemoMode()) throw new ApiError('Demo incidents cannot be sent to Jira.', { kind: 'demo' });
   const body = await getJson(`/api/incidents/${encodeURIComponent(incidentId)}/notify`, undefined, 'POST');
   if (!body?.jira_key || !body?.jira_url || body.incident_id !== incidentId) {
     throw new ApiError('Backend did not confirm a Jira issue. Refresh before retrying.', { kind: 'shape' });
   }
   return body;
+}
+
+export async function getJiraCapability(signal) {
+  if (isDemoMode()) return false;
+  try {
+    const body = await getJson('/api/integrations/capabilities', signal);
+    return body?.jira?.notify === true;
+  } catch (error) {
+    if (error.status === 404) return false;
+    throw error;
+  }
+}
+
+// Compatibility for callers using the original Jira action name.
+export const createJiraIssue = notifyIncident;
+
+export async function getSlackCapability(signal) {
+  if (isDemoMode()) return false;
+  try {
+    const body = await getJson('/api/integrations/capabilities', signal);
+    return body?.slack?.notify === true;
+  } catch (error) {
+    if (error.status === 404) return false;
+    throw error;
+  }
 }

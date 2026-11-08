@@ -81,7 +81,9 @@ export function IntegrationResults({ integrations }) {
   const i = integrations ?? {};
   const rows = [
     ['Jira issue key', i.jira_key, i.jira_url],
-    ['Slack message ID', i.slack_message_id, null],
+    ['Slack delivery', i.slack_status, null],
+    ['Slack channel', i.slack_channel_id, null],
+    ['Slack message timestamp', i.slack_message_ts ?? i.slack_message_id, null],
     ['GitHub PR', i.github_pr_url, null],
     ['Solana tx signature', i.solana_tx_signature, null],
   ];

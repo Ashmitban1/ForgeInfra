@@ -14,7 +14,10 @@ def configuration() -> tuple[str, str, str, str]:
     if missing:
         raise HTTPException(503, 'Configure backend variables: ' + ', '.join(missing))
     base, email, token, project = values
-    url = urlsplit(base)
+    try:
+        url = urlsplit(base)
+    except ValueError:
+        raise HTTPException(503, 'JIRA_BASE_URL must be an HTTPS Atlassian Cloud site URL.') from None
     if (url.scheme != 'https' or not url.hostname or
             not url.hostname.endswith('.atlassian.net') or url.username or
             url.password or url.netloc != url.hostname or url.path not in ('', '/') or url.query or url.fragment):
@@ -35,6 +38,10 @@ def create_issue(incident: dict, config: tuple) -> dict:
              *[f'{key}: {hardware.get(key)}' for key in
                ('temperature_c', 'humidity_pct', 'observed_at', 'received_at',
                 'cooling_fault', 'fault_is_simulated', 'source_kind')],
+             f'Expected status: {incident.get("expected_status")}',
+             f'Legacy status: {incident.get("legacy_monitor", {}).get("status")}',
+             f'Reliability mismatch: {incident.get("reliability", {}).get("mismatch")}',
+             f'Evidence quality: {incident.get("reliability", {}).get("evidence_quality")}',
              'Mismatch reasons: ' + ', '.join(incident.get('reliability', {}).get('reasons', []))]
     payload = {'fields': {
         'project': {'key': project}, 'issuetype': {'name': 'Task'},

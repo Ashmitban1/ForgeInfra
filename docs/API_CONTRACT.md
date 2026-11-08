@@ -20,3 +20,23 @@ Incidents include investigation and decision-review fields set `PENDING` until a
 ## Jira notification extension
 
 See `backend/integrations/README.md` for setup and request/response examples. POST notify creates a real Jira Task and records `jira_key`, `jira_id`, and `jira_url` under incident integrations. Repeated confirmed requests return the same issue; uncertain attempts return 409 for manual reconciliation. The original `backend.main:app` remains unchanged pending Person 1 registration.
+
+`GET /api/integrations/capabilities` is an additive integration-router endpoint returning `{"jira":{"notify":true}}`. The frontend checks route support before enabling creation; it does not expose credential state.
+
+## Combined Jira + Slack notification extension
+
+`POST /api/incidents/{id}/notify` now creates/reuses Jira first and then sends Slack.
+Existing Jira response fields remain compatible. When Jira succeeds, HTTP 200
+returns `notification_status` (`DELIVERED` or `PARTIAL`) plus `slack_status`,
+`slack_error`, `slack_already_exists`, and confirmed `slack_channel_id`,
+`slack_message_ts`, `slack_message_id` (timestamp compatibility alias).
+`integrations` contains the updated incident integration fields, also available
+through existing incident GET routes. Missing Slack configuration yields partial
+success with the actual Jira reference retained; Jira errors retain existing HTTP
+error behavior and no Slack send is attempted.
+
+Slack states: `NOT_CONFIGURED`, `FAILED` (explicit rejection; corrected retry
+allowed), `PENDING`, `UNCONFIRMED` (manual reconciliation before retry), `DELIVERED`
+(confirmed channel and timestamp). Absent Slack fields on an older incident mean
+no recorded delivery, not successful delivery. Capability response adds
+`"slack":{"notify":true}` alongside Jira. Configuration remains backend-only.
